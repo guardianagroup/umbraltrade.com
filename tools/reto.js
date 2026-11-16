@@ -140,6 +140,12 @@ function cerrar(st, now, op, salida, entrada) {
     for (let n = CFG.nivelApunta; n <= op.nivel; n++) suma(st, 'n' + n, gana, op.pago);
     if (op.nivel >= CFG.nivelFuerte) { suma(st, op.fuerte ? 'fuerte' : 'sola', gana, op.pago); suma(st, op.lado, gana, op.pago); suma(st, 'm_' + op.mer, gana, op.pago); }
     if (op.opera) suma(st, 'operadas', gana, op.pago);
+    if (op.fuerte) {   // la idea de las dos cuentas: ¿acierta más la fuerte que llega después de una jugada perdida?
+      const G = st.fGrupo || (st.fGrupo = { vela: 0, ok: 0, n: 0, prev: null });
+      if (op.vela !== G.vela) { if (G.n) G.prev = G.ok / G.n > 0.55; G.vela = op.vela; G.ok = 0; G.n = 0; }   // una jugada repartida gana si acierta más del 55 %
+      if (G.prev != null) suma(st, G.prev ? 'trasGana' : 'trasPierde', gana, op.pago);
+      G.n++; if (gana) G.ok++;
+    }
   }
   sella(st, op);
 }
