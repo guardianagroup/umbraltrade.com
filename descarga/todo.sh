@@ -21,6 +21,7 @@ case "$PARTE" in
   h1m) python3 duka.py h1 "$OUT" 2003 XAUUSD,XAGUSD ;;
   h1f) python3 duka.py h1 "$OUT" 2008 EUSIDXEUR,NLDIDXEUR,CHEIDXCHF,JPNIDXJPY,HKGIDXHKD,AUSIDXAUD,XPTCMDUSD,XPDCMDUSD ;;
   m1-*) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 "${PARTE#m1-}" ;;
+  ask-*) LADO=ASK python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 "${PARTE#ask-}" ;;
   deriv) COSTES=0 python3 deriv.py "$OUT" ;;
   costes) SOLO_COSTES=1 python3 deriv.py "$OUT" ;;
   pagos) SOLO_PAGOS=1 python3 deriv.py "$OUT" ;;

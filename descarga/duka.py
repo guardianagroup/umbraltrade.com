@@ -44,6 +44,8 @@ def baja(ruta, tries=8):
     return None
 REC = np.dtype([('t', '>i4'), ('f1', '>i4'), ('f2', '>i4'), ('f3', '>i4'), ('f4', '>i4'), ('v', '>f4')])
 HILOS = int(os.environ.get('HILOS', '4'))
+LADO = os.environ.get('LADO', 'BID')   # BID (por defecto) o ASK: con las dos se saca el precio medio y el diferencial real
+PRE = 'duka' if LADO == 'BID' else 'dukaask'
 FALLOS = []
 MAPA = {}   # por instrumento: qué columna es o, c, l, h
 
@@ -121,7 +123,7 @@ def dias_m1(ins, d0, d1, pool, cripto=False):
         if cripto or d.weekday() != 5:
             dias.append(d)
         d += dt.timedelta(days=1)
-    urls = ['%s%s/%04d/%02d/%02d/BID_candles_min_1.bi5' % (BASE, ins, d.year, d.month - 1, d.day) for d in dias]
+    urls = [('%s%s/%04d/%02d/%02d/' + LADO + '_candles_min_1.bi5') % (BASE, ins, d.year, d.month - 1, d.day) for d in dias]
     res = list(pool.map(trae, urls))
     return junta(ins, [(calendar.timegm(d.timetuple()), a) for d, a in zip(dias, res)])
 
@@ -131,7 +133,7 @@ def modo_h1(out, desde, lista):
     with ThreadPoolExecutor(HILOS) as pool:
         for ins in lista:
             meses = [(y, m) for y in range(desde, hoy.year + 1) for m in range(1, 13) if (y, m) <= (hoy.year, hoy.month)]
-            urls = ['%s%s/%04d/%02d/BID_candles_hour_1.bi5' % (BASE, ins, y, m - 1) for y, m in meses]
+            urls = [('%s%s/%04d/%02d/' + LADO + '_candles_hour_1.bi5') % (BASE, ins, y, m - 1) for y, m in meses]
             res = list(pool.map(trae, urls))
             t, o, h, l, c, v = junta(ins, [(calendar.timegm((y, m, 1, 0, 0, 0)), a) for (y, m), a in zip(meses, res)])
             # lo más reciente (el mes en curso puede no estar): se completa con velas de 1 minuto de los últimos 45 días
@@ -144,7 +146,7 @@ def modo_h1(out, desde, lista):
                 k = t2 > ult
                 if k.any():
                     t, o, h, l, c, v = [np.concatenate([a, b[k]]) for a, b in ((t, t2), (o, o2), (h, h2), (l, l2), (c, c2), (v, v2))]
-            n = guarda(out, 'duka_' + ins + '_H1', t, o, h, l, c, v)
+            n = guarda(out, PRE + '_' + ins + '_H1', t, o, h, l, c, v)
             log('H1', ins, n, round(time.time() - T0), 's', dict(ERR), dt.datetime.utcfromtimestamp(int(t[0])).date() if n else '-', dt.datetime.utcfromtimestamp(int(t[-1])) if n else '-', 'fallos', len(FALLOS))
 
 
@@ -156,11 +158,11 @@ def modo_m1(out, desde, m1desde, lista):
         for item in lista:
             ins, guarda_m1 = (item[:-1], True) if item.endswith('+') else (item, False)
             t, o, h, l, c, v = dias_m1(ins, d0, hoy - dt.timedelta(days=1), pool, ins in ('BTCUSD', 'ETHUSD'))
-            n5 = guarda(out, 'duka_' + ins + '_M5', *agrega(t, o, h, l, c, v, 300))
+            n5 = guarda(out, PRE + '_' + ins + '_M5', *agrega(t, o, h, l, c, v, 300))
             n1 = 0
             if guarda_m1 and k1 is not None and len(t):
                 k = t >= k1
-                n1 = guarda(out, 'duka_' + ins + '_M1', t[k], o[k], h[k], l[k], c[k], v[k])
+                n1 = guarda(out, PRE + '_' + ins + '_M1', t[k], o[k], h[k], l[k], c[k], v[k])
             log('M1', ins, round(time.time() - T0), 's', dict(ERR), 'm1', len(t), 'M5', n5, 'M1 guardadas', n1, dt.datetime.utcfromtimestamp(int(t[0])).date() if len(t) else '-', 'fallos', len(FALLOS))
 
 
