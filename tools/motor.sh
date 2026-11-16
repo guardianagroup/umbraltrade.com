@@ -33,6 +33,7 @@ while :; do
   [ "$prox" -ge "$FIN" ] && break
   sleep $(( prox - ahora ))
   min=$(( (prox / 60) % 60 ))
+  if [ $(( min % 15 )) -eq 10 ]; then git pull -q --rebase origin main || echo "no se pudo traer el código nuevo"; fi   # entre decisiones: los cambios del motor entran sin relanzar la tarea
   timeout 240 node tools/reto.js datos/reto.json || echo "reto: fallo"
   if [ $(( min % 15 )) -eq 5 ] || [ $(( prox - cuenta )) -ge 1200 ]; then timeout 200 node tools/cuenta.js datos/cuenta.json || echo "cuenta: fallo"; cuenta=$prox; fi
   guarda "Motor"

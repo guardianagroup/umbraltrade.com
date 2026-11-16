@@ -8,9 +8,10 @@
 
    SEÑAL FUERTE: dos o más mercados dan a la vez una señal del 1 % más seguro. En 2021–2026 acertó el 61 % (la que va sola, el 56 %). Solo con las
    fuertes se juega dinero ficticio, en dos cuentas que usan las mismas señales para poder compararlas:
-     · escalera (el Reto de siempre): 10 € y a todo; desde el 4.º peldaño guarda la mitad de cada ganancia; en el 9.º cobra; si falla, otra con 10 €;
-     · plan por tramos (el reparto que mejor sale en 10.000 simulaciones): escalera corta de 3 peldaños (10 → 60 €) y, desde ahí, el 10 % del dinero
-       en cada señal fuerte; si baja de 10 €, vuelve a la escalera.
+     · escalera (el Reto de siempre, por peldaños): 50 € y a todo; desde el 4.º peldaño guarda la mitad de cada ganancia; en el 9.º cobra; si falla,
+       otra con 50 €;
+     · plan (subir poco a poco, resguardando): 50 € y el 10 % de lo que haya en cada señal fuerte. Con 50 € ya no hace falta la escalera corta que
+       pedía empezar con 10 € (CFG.plan.escalera = 0; con un valor mayor, primero juega esa escalera a todo y vuelve a ella si baja de `vuelve`).
    En las dos, lo apostado se reparte a partes iguales entre los mercados del grupo (hasta 3). No se entra si Deriv paga menos del 75 %.
    El marcador cuenta todas las señales, operadas o no: por confianza, por dirección, fuertes y solas, y por mercado.
 
@@ -20,9 +21,9 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const M = require('./modelo.js'), MODELO = require('./modelo15.json');
 const URL_DERIV = 'wss://api.derivws.com/trading/v1/options/ws/public';
 const CFG = {
-  v: 2, plazo: 900, pagoMin: 0.75, min: 0.5, nivelApunta: 1, nivelFuerte: 3, grupoMin: 2, partesMax: 3, maxPago: null,   // maxPago: tope de pago por contrato (null = sin tope hasta confirmarlo en la cuenta)
-  escalera: { inicio: 10, aTodo: 4, guarda: 0.5, tope: 9 },
-  plan: { inicio: 10, escalera: 3, fraccion: 0.10, vuelve: 10 },
+  v: 3, plazo: 900, pagoMin: 0.75, min: 0.5, nivelApunta: 1, nivelFuerte: 3, grupoMin: 2, partesMax: 3, maxPago: null,   // maxPago: tope de pago por contrato (null = sin tope hasta confirmarlo en la cuenta)
+  escalera: { inicio: 50, aTodo: 4, guarda: 0.5, tope: 9 },
+  plan: { inicio: 50, escalera: 0, fraccion: 0.10, vuelve: 0 },
   codigos: { EURUSD: 'frxEURUSD', GBPUSD: 'frxGBPUSD', USDJPY: 'frxUSDJPY', EURJPY: 'frxEURJPY', XAUUSD: 'frxXAUUSD' },
   nombres: { EURUSD: 'EUR/USD', GBPUSD: 'GBP/USD', USDJPY: 'USD/JPY', EURJPY: 'EUR/JPY', XAUUSD: 'Oro/USD' },
   niveles: ['', '5 % más seguro', '2 % más seguro', '1 % más seguro', '0,5 % más seguro']
@@ -34,7 +35,7 @@ function nuevo(now) {
   return { v: CFG.v, creado: now, actualizado: now, huella: '', n: 0, abiertas: [], senales: [], marcador: {},
     pistas: {
       escalera: { intento: 0, peldano: 0, dinero: 0, guardado: 0, puesto: 0, mejor: 0, llegadas: {}, historia: [], jugada: null, curva: [[now, 0]] },
-      plan: { fase: 0, intento: 0, peldano: 0, dinero: 0, puesto: 0, pico: 0, n: 0, ganadas: 0, historia: [], jugada: null, curva: [[now, 0]] }
+      plan: { fase: CFG.plan.escalera > 0 ? 0 : 1, intento: 0, peldano: 0, dinero: 0, puesto: 0, pico: 0, n: 0, ganadas: 0, historia: [], jugada: null, curva: [[now, 0]] }
     },
     eventos: [], ultimaDecision: 0, mirado: [], limites: {} };
 }
@@ -80,7 +81,7 @@ function apostarEscalera(st, now, F) {
 }
 function apostarPlan(st, now, F) {
   const P = st.pistas.plan, K = CFG.plan; if (P.jugada) return null;
-  if (P.dinero < CFG.min) { P.intento++; P.fase = 0; P.peldano = 0; P.dinero = r2(P.dinero + K.inicio); P.puesto = r2(P.puesto + K.inicio); }
+  if (P.dinero < CFG.min) { P.intento++; P.fase = K.escalera > 0 ? 0 : 1; P.peldano = 0; P.dinero = r2(P.dinero + K.inicio); P.puesto = r2(P.puesto + K.inicio); }
   const total0 = P.fase === 0 ? P.dinero : Math.min(P.dinero, Math.max(CFG.min, P.dinero * K.fraccion));
   const partes = reparte(total0, F, st); if (!partes.length) return null;
   const total = r2(partes.reduce((a, b) => a + b.apuesta, 0));
@@ -116,7 +117,7 @@ function liquidarPlan(st, now, cerradas) {
     else txt = 'Plan: ' + v[1] + ' de ' + J.partes.length + ' acertadas; quedan ' + eur(P.dinero) + '.';
   } else {
     txt = 'Plan: ' + (gana ? 'gana ' + eur(dev - J.total) : dev < J.total - 0.005 ? 'pierde ' + eur(J.total - dev) : 'queda igual') + '; hay ' + eur(P.dinero) + '.';
-    if (P.dinero < K.vuelve) { P.fase = 0; P.peldano = 0; txt += ' Baja de ' + K.vuelve + ' €: vuelve a la escalera corta.'; }
+    if (K.escalera > 0 && P.dinero < K.vuelve) { P.fase = 0; P.peldano = 0; txt += ' Baja de ' + K.vuelve + ' €: vuelve a la escalera corta.'; }
   }
   if (P.dinero > P.pico) P.pico = P.dinero; if (P.historia.length > 80) P.historia.length = 80;
   punto(P.curva, now, P.dinero - P.puesto); evento(st, now, 'plan', txt);
@@ -186,6 +187,7 @@ function paso(st, datos, now) {
   if (datos.visto && datos.visto > st.ultimaDecision) st.ultimaDecision = datos.visto;
   if (datos.mirado) st.mirado = [now, datos.mirado];
   if (datos.limites) Object.assign(st.limites, datos.limites);
+  st.cfg = { escalera: CFG.escalera, plan: CFG.plan, pagoMin: CFG.pagoMin, min: CFG.min, partesMax: CFG.partesMax };   // para que la página cuente las reglas tal como están
   st.actualizado = now; return st;
 }
 
