@@ -1,12 +1,47 @@
 # Velas históricas de Dukascopy (datafeed público), en UTC.
 #   python duka.py h1 OUT 2003 EURUSD,GBPUSD,...            velas de 1 hora por meses, desde ese año
 #   python duka.py m1 OUT 2018-01-01 2025-01-01 EURUSD,...   velas de 1 minuto por días -> guarda M5 de todo y M1 desde la segunda fecha
-import sys, os, lzma, datetime as dt, calendar
+import sys, os, lzma, datetime as dt, calendar, time, threading, http.client, collections
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
-from comun import baja, guarda, cierra, agrega, log
+from comun import guarda, cierra, agrega, log, UA
 
-BASE = 'https://datafeed.dukascopy.com/datafeed/'
+HOST = 'datafeed.dukascopy.com'
+BASE = '/datafeed/'
+ERR = collections.Counter()
+_tl = threading.local()
+PAUSA = float(os.environ.get('PAUSA', '0'))
+
+
+def baja(ruta, tries=8):
+    """Una conexión por hilo, que se mantiene abierta (abrir una nueva en cada petición hace que el servidor frene)."""
+    for k in range(tries):
+        conn = getattr(_tl, 'c', None)
+        try:
+            if conn is None:
+                conn = _tl.c = http.client.HTTPSConnection(HOST, timeout=30)
+            conn.request('GET', ruta, headers=UA)
+            r = conn.getresponse()
+            body = r.read()
+            if r.status == 200:
+                ERR['ok'] += 1
+                if PAUSA:
+                    time.sleep(PAUSA)
+                return body
+            if r.status == 404:
+                ERR['404'] += 1
+                return b''
+            ERR[str(r.status)] += 1
+            time.sleep(min(20, 2 * (k + 1)))
+        except Exception as e:
+            ERR[type(e).__name__] += 1
+            try:
+                conn.close()
+            except Exception:
+                pass
+            _tl.c = None
+            time.sleep(min(20, 1 + k))
+    return None
 REC = np.dtype([('t', '>i4'), ('f1', '>i4'), ('f2', '>i4'), ('f3', '>i4'), ('f4', '>i4'), ('v', '>f4')])
 HILOS = int(os.environ.get('HILOS', '16'))
 FALLOS = []
@@ -115,7 +150,7 @@ def modo_h1(out, desde, lista):
                 if k.any():
                     t, o, h, l, c, v = [np.concatenate([a, b[k]]) for a, b in ((t, t2), (o, o2), (h, h2), (l, l2), (c, c2), (v, v2))]
             n = guarda(out, 'duka_' + ins + '_H1', t, o, h, l, c, v)
-            log('H1', ins, n, dt.datetime.utcfromtimestamp(int(t[0])).date() if n else '-', dt.datetime.utcfromtimestamp(int(t[-1])) if n else '-', 'fallos', len(FALLOS))
+            log('H1', ins, n, round(time.time() - T0), 's', dict(ERR), dt.datetime.utcfromtimestamp(int(t[0])).date() if n else '-', dt.datetime.utcfromtimestamp(int(t[-1])) if n else '-', 'fallos', len(FALLOS))
 
 
 def modo_m1(out, desde, m1desde, lista):
@@ -131,8 +166,10 @@ def modo_m1(out, desde, m1desde, lista):
             if guarda_m1 and k1 is not None and len(t):
                 k = t >= k1
                 n1 = guarda(out, 'duka_' + ins + '_M1', t[k], o[k], h[k], l[k], c[k], v[k])
-            log('M1', ins, 'm1', len(t), 'M5', n5, 'M1 guardadas', n1, dt.datetime.utcfromtimestamp(int(t[0])).date() if len(t) else '-', 'fallos', len(FALLOS))
+            log('M1', ins, round(time.time() - T0), 's', dict(ERR), 'm1', len(t), 'M5', n5, 'M1 guardadas', n1, dt.datetime.utcfromtimestamp(int(t[0])).date() if len(t) else '-', 'fallos', len(FALLOS))
 
+
+T0 = time.time()
 
 if __name__ == '__main__':
     modo, out = sys.argv[1], sys.argv[2]
