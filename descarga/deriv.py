@@ -198,6 +198,48 @@ async def pagos(cl, codes, info):
 
 
 
+SESGO = 'frxEURUSD frxGBPUSD frxUSDJPY frxAUDUSD frxEURJPY frxXAUUSD OTC_SPC OTC_NDX OTC_GDAXI R_100'.split()
+
+
+async def sesgo(cl, codes, horas):
+    """Cada minuto, lo que paga Deriv por Sube y por Baja a 15 min y a 1 h en cada mercado, con el precio de ese momento.
+    Sirve para ver de qué depende el reparto del pago (si Deriv ya descuenta el movimiento reciente) y para valorar una señal con el pago real."""
+    fin = time.time() + horas * 3600
+    n = 0
+    with open(os.path.join(OUT, 'deriv_sesgo.jsonl'), 'w') as f:
+        while time.time() < fin:
+            t0 = time.time()
+            for code in codes:
+                fila = {'t': int(time.time()), 's': code}
+                for n_, u in ((15, 'm'), (1, 'h')):
+                    for tipo in ('CALL', 'PUT'):
+                        p = await cl.pide({'proposal': 1, 'amount': 10, 'basis': 'stake', 'contract_type': tipo, 'currency': 'USD', 'underlying_symbol': code, 'duration': n_, 'duration_unit': u}, tries=1)
+                        q = p.get('proposal') or {}
+                        k = '%s%d%s' % ('c' if tipo == 'CALL' else 'p', n_, u)
+                        if q.get('payout'):
+                            fila[k] = round(float(q['payout']) / 10 - 1, 4)
+                            fila['x'] = q.get('spot')
+                        else:
+                            fila[k] = None
+                            fila['e'] = (p.get('error') or {}).get('code')
+                f.write(json.dumps(fila) + '\n')
+            f.flush()
+            n += 1
+            if n % 30 == 1:
+                log('sesgo', n, 'vueltas', round(time.time() - t0, 1), 's por vuelta')
+            await asyncio.sleep(max(1.0, 60 - (time.time() - t0)))
+    velas = {}
+    for code in codes:
+        d = await cl.pide({'ticks_history': code, 'end': 'latest', 'count': 1000, 'style': 'candles', 'granularity': 60}, tries=3)
+        velas[code] = [[c['epoch'], c['open'], c['high'], c['low'], c['close']] for c in (d.get('candles') or [])]
+        d5 = await cl.pide({'ticks_history': code, 'end': 'latest', 'count': 1000, 'style': 'candles', 'granularity': 300}, tries=3)
+        velas[code + '|M5'] = [[c['epoch'], c['open'], c['high'], c['low'], c['close']] for c in (d5.get('candles') or [])]
+        log('sesgo velas', code, len(velas[code]), len(velas[code + '|M5']))
+    with open(os.path.join(OUT, 'deriv_sesgo_velas.json'), 'w') as f:
+        json.dump(velas, f)
+
+
+
 async def main():
     cl = Cliente()
     await cl.abre()
@@ -212,6 +254,13 @@ async def main():
                       'abierto': bool(s.get('exchange_is_open')) and not s.get('is_trading_suspended')}
     with open(os.path.join(OUT, 'deriv_simbolos.json'), 'w') as f:
         json.dump(info, f)
+    if os.environ.get('SOLO_SESGO'):
+        await sesgo(cl, SESGO, float(os.environ['SOLO_SESGO']))
+        try:
+            await cl.ws.close()
+        except Exception:
+            pass
+        return
     if os.environ.get('SOLO_PAGOS') == '1':
         await pagos(cl, PAGOS, info)
         try:

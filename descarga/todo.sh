@@ -25,6 +25,7 @@ case "$PARTE" in
   deriv) COSTES=0 python3 deriv.py "$OUT" ;;
   costes) SOLO_COSTES=1 python3 deriv.py "$OUT" ;;
   pagos) SOLO_PAGOS=1 python3 deriv.py "$OUT" ;;
+  sesgo-*) SOLO_SESGO="${PARTE#sesgo-}" python3 deriv.py "$OUT" ;;
   binance) HILOS=4 python3 binance.py "$OUT" ;;
   *) echo "parte desconocida: $PARTE"; exit 1 ;;
 esac
