@@ -1,0 +1,25 @@
+# Datos del estudio: solo se lanza a mano (no está programada). Descarga velas históricas públicas, las cifra con una clave
+# pública y las deja en una rama temporal, que se borra al terminar el estudio.
+name: Datos del estudio
+on:
+  workflow_dispatch:
+    inputs:
+      parte:
+        description: Parte que se descarga
+        required: true
+        default: prueba
+permissions:
+  contents: write
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: estudio
+      - name: Descargar, cifrar y subir
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PARTE: ${{ inputs.parte }}
+        run: bash descarga/todo.sh "$PARTE"
