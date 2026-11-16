@@ -1,15 +1,16 @@
 /* Cuenta del algoritmo de Umbral Trade: una cuenta ficticia de 50 $ que opera sola con reglas fijas y deja cada operación a la vista.
    Uso:  node tools/cuenta.js datos/cuenta.json                  (lo ejecuta cada 15 minutos .github/workflows/cuenta.yml)
          node tools/cuenta.js estado.json --velas velas.json --ahora 1763337600   (sin red, para las pruebas)
-   Versión 3 (16-11-2026): puede operar cualquier mercado de Deriv que no sea sintético (forex, metales, índices y cripto), en velas de 4 h,
+   Versión 4 (16-11-2026): puede operar cualquier mercado de Deriv que no sea sintético (forex, metales, índices y cripto), en velas de 4 h,
    y opera los que el estudio de 20 años validó: Bitcoin, Ethereum, oro y plata, con la rotura de canal.
    - Dos estrategias. «tortuga»: rotura de canal (cierre por encima del máximo o por debajo del mínimo de las 55 velas anteriores),
      stop a 2 ATR(20), suma una unidad cada 0,5 ATR a favor hasta 4 y sale cuando una vela cierra al otro lado del canal de 20.
      «giro» (las flechas): vela extrema tras un estiramiento (fuera de Bollinger o RSI 30/70, mínimo o máximo de 20 velas) confirmada
      por un cierre más allá de la vela anterior; stop 0,25 ATR más allá del extremo, take profit a 1,5 ATR y, como tarde, sale a las 40 velas.
    - Niveles por familia y estrategia: «validada» arriesga el 0,5 % del saldo por unidad; «prueba», el 0,1 %; «apagada» y «observa» no operan.
-     El estudio (más de 20 años de velas, comisión de Deriv incluida) validó la rotura en cripto (+0,66 R por operación) y en metales
-     (+0,47 R, en las tres épocas) y rechazó la rotura en forex e índices y el giro en todas las familias (sin comisión se queda en cero).
+     El estudio (más de 20 años de velas, comisión de Deriv incluida) validó la rotura en cripto (+0,59 R por operación, en los dos
+     sentidos y sumando unidades) y, en oro y plata, la rotura al alza (+0,50 R, positiva en las tres épocas y en 17 de 24 años; las ventas
+     pierden y sumar no mejora). Rechazó la rotura en forex e índices y el giro en todas las familias (sin comisión se queda en cero).
      Todas las señales de las dos estrategias se siguen midiendo en todos los mercados como si se operaran: una validada que pierde claro
      en vivo (30 señales, t ≤ −2) se apaga; una rechazada solo volvería con 300 señales y t ≥ 3. Queda escrito en el registro.
    - Riesgo abierto: 2 % como máximo en lo validado y 1 % en lo que está en prueba; en prueba, 3 operaciones por familia; en forex,
@@ -28,7 +29,7 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto');
    su API); sin multiplicador (m: 0: índices, cruces menores, platino y paladio) solo hay CFD en MT5 y se pone un diferencial prudente. */
 const mk = (group, lista, extra) => lista.map(x => Object.assign({ code: x[0], name: x[1], group: group, dec: x[2], rate: x[3], mult: x[4] !== 0 }, extra || {}, x[5] || {}));
 const CFG = {
-  v: 3, saldo0: 50, gran: 14400, m5: 300,
+  v: 4, saldo0: 50, gran: 14400, m5: 300,
   entrada: 55, salida: 20, stopN: 2, paso: 0.5, maxUnidades: 4,
   giro: { stop: 0.25, objetivo: 1.5, velas: 40 },
   riesgo: { validada: 0.005, prueba: 0.001 }, riesgoMax: 0.02, riesgoPrueba: 0.01, porFamilia: 3, porDivisa: 2,
@@ -36,9 +37,12 @@ const CFG = {
   nivel: { n: 30, r: 0.10, t: 2 }, binaria: { n: 100, p: 0.58, lo: 0.55, pago: 0.82 },   // Deriv paga cerca del 82 % en forex, metales e índices: hace falta acertar el 55 %
   estrategias: ['tortuga', 'giro'],
   planes: { 'cripto|tortuga': 'validada', 'metal|tortuga': 'validada' },   // lo que validó el estudio de 20 años; forex e índices, en observación
-  // lo que el estudio rechazó (R neto medio por operación en 4 h): para volver a operarlo tendría que demostrarlo en vivo con mucha más muestra
-  rechazadas: { 'forex|giro': [15736, -0.086], 'indice|giro': [10767, -0.027], 'metal|giro': [3659, -0.114], 'cripto|giro': [1461, -0.059], 'forex|tortuga': [5784, -0.102], 'indice|tortuga': [3995, -0.065] },
-  validadas: { 'cripto|tortuga': [539, 0.658], 'metal|tortuga': [1466, 0.466] },
+  // cómo opera cada plan: lados (0 los dos, 1 solo compras) y unidades como mucho. En oro y plata las ventas perdieron (16 de 24 años) y
+  // sumar unidades no mejoró el resultado por riesgo; en cripto los dos sentidos y sumar hasta 4 dieron todos los años en positivo.
+  reglas: { 'metal|tortuga': { lados: 1, unidades: 1 } },
+  // lo que el estudio rechazó (operaciones y R neto medio en 4 h): para volver a operarlo tendría que demostrarlo en vivo con mucha más muestra
+  rechazadas: { 'forex|giro': [15736, -0.086], 'indice|giro': [10767, -0.027], 'metal|giro': [2836, -0.101], 'cripto|giro': [1461, -0.059], 'forex|tortuga': [5784, -0.102], 'indice|tortuga': [3995, -0.065] },
+  validadas: { 'cripto|tortuga': [573, 0.587], 'metal|tortuga': [555, 0.504] },
   exigente: { n: 300, t: 3 },
   derivUrl: 'wss://api.derivws.com/trading/v1/options/ws/public',
   mercados: [].concat(
@@ -119,7 +123,7 @@ function simular(c, e, s, rate) {   // e: índice de la vela de entrada (se entr
     const k = c[j], adv = dir > 0 ? k.l : k.h, fav = dir > 0 ? k.h : k.l;
     if ((adv - stop) * dir <= 0) { x = j > e && (k.o - stop) * dir <= 0 ? k.o : stop; why = 'stop'; break; }
     if (tp === tp && (fav - tp) * dir >= 0) { x = (k.o - tp) * dir >= 0 ? k.o : tp; why = 'objetivo'; break; }
-    if (s.estrategia === 'tortuga' && units.length < CFG.maxUnidades && (fav - nextAdd) * dir >= 0) {
+    if (s.estrategia === 'tortuga' && units.length < (s.unidades || CFG.maxUnidades) && (fav - nextAdd) * dir >= 0) {
       const ap = (k.o - nextAdd) * dir >= 0 ? k.o : nextAdd; units.push(ap); nextAdd = ap + dir * CFG.paso * N;
       const ns = ap - dir * CFG.stopN * N; if ((ns - stop) * dir > 0) stop = ns;
       if ((adv - stop) * dir <= 0) { x = stop; why = 'stop'; break; }
@@ -153,8 +157,15 @@ function migrar(st, now) {
     Object.keys(CFG.rechazadas).forEach(k => { const a = st.planes[k]; if (a === 'validada' || a === 'prueba') { st.planes[k] = 'apagada'; evento(st, now, 'nivel', k + ': ' + a + ' → apagada', { plan: k, de: a, a: 'apagada', n: CFG.rechazadas[k][0], r: CFG.rechazadas[k][1], estudio: 1 }); } });
     Object.keys(st.espera || {}).forEach(code => { const m = POR[code]; if (!m || !activo(st, m, st.espera[code].est)) delete st.espera[code]; });
   }
+  if (st.v < 4) {   // versión 4 (16-11-2026): con las velas de oro y plata bien leídas, en metales solo compras y sin sumar unidades
+    st.v = 4;
+    evento(st, now, 'version', 'Oro y plata: solo compras y sin sumar', { v: 4 });
+    st.virtuales = st.virtuales.filter(v => { const m = POR[v.code], rg = m ? regla(m, v.est) : null; return !rg || !rg.lados || v.dir === rg.lados; });
+    Object.keys(st.espera || {}).forEach(code => { const m = POR[code], w = st.espera[code], rg = m ? regla(m, w.est) : null; if (rg && rg.lados && w.s.dir !== rg.lados) delete st.espera[code]; });
+  }
 }
 const plan = (st, m, est) => st.planes[m.group + '|' + est] || 'observa';
+const regla = (m, est) => Object.assign({ lados: 0, unidades: est === 'tortuga' ? CFG.maxUnidades : 1 }, CFG.reglas[m.group + '|' + est] || {});
 const activo = (st, m, est) => { const e = plan(st, m, est); return m.opera !== false && (e === 'validada' || e === 'prueba'); };
 const cfdDe = (st, code) => st.abiertas.find(p => p.code === code && p.producto === 'cfd');
 function riesgoDe(p) {   // lo que se perdería si la operación tocara su stop (en $)
@@ -206,7 +217,7 @@ function abrir(st, m, est, s, now, precio) {   // devuelve '' si abre; si no, el
     mult: m.mult, n: r2(s.n, D), stop: r2(stop, D), stop0: r2(stop, D), unidades: [{ t: now, p: precio, tam: tam }], comision: r2(m.rate * tam, 6), riesgo0: riesgo, revisado: now,
     motivo: { senal: s.t, cierre: s.cierre, retraso: Math.max(0, Math.round(now - (s.t + CFG.gran))) } };
   if (est === 'giro') { p.tp = r2(precio + s.dir * CFG.giro.objetivo * s.n, D); p.velas = 0; p.motivo.extremo = r2(s.extremo, D); p.motivo.gatillo = r2(s.gatillo, D); p.motivo.t0 = s.t0; }
-  else { p.siguiente = r2(precio + s.dir * CFG.paso * s.n, D); p.motivo.nivel = r2(s.nivel, D); p.motivo.cambio = s.cambio; }
+  else { p.maxu = regla(m, est).unidades; if (p.maxu > 1) p.siguiente = r2(precio + s.dir * CFG.paso * s.n, D); p.motivo.nivel = r2(s.nivel, D); p.motivo.cambio = s.cambio; }
   st.abiertas.push(p);
   evento(st, now, 'abre', (s.dir > 0 ? 'Compra ' : 'Venta ') + m.name, { id: id, precio: precio });
   return '';
@@ -236,7 +247,7 @@ function gestionar(st, m, d, now, c) {
     const adv = p.dir > 0 ? k.l : k.h, fav = p.dir > 0 ? k.h : k.l;
     if ((adv - p.stop) * p.dir <= 0) { cerrar(st, p, k.t + CFG.m5, (k.o - p.stop) * p.dir <= 0 ? k.o : p.stop, 'stop'); return; }
     if (p.tp != null && (fav - p.tp) * p.dir >= 0) { cerrar(st, p, k.t + CFG.m5, (k.o - p.tp) * p.dir >= 0 ? k.o : p.tp, 'objetivo'); return; }
-    if (p.siguiente != null && p.unidades.length < CFG.maxUnidades && (fav - p.siguiente) * p.dir >= 0 && activo(st, m, p.estrategia) && !bloqueada(st, now)) {
+    if (p.siguiente != null && p.unidades.length < (p.maxu || CFG.maxUnidades) && (fav - p.siguiente) * p.dir >= 0 && activo(st, m, p.estrategia) && !bloqueada(st, now)) {
       const ap = (k.o - p.siguiente) * p.dir >= 0 ? k.o : p.siguiente;
       if (sumar(st, m, p, k.t, ap) && (adv - p.stop) * p.dir <= 0) { cerrar(st, p, k.t + CFG.m5, p.stop, 'stop'); return; }
     }
@@ -262,10 +273,10 @@ function senales(st, m, d, now, c, A, R) {
   if ((st.ultimo[m.code] || 0) < c[i].t) {
     st.ultimo[m.code] = c[i].t;
     CFG.estrategias.forEach(est => {
-      const s = SENAL[est](c, i, A, R); if (!s) return;
+      const s = SENAL[est](c, i, A, R), rg = regla(m, est); if (!s || (rg.lados && s.dir !== rg.lados)) return;   // el lado que el plan no opera, ni se apunta
       s.t = c[i].t;
       const key = m.code + '|' + est;
-      if (!st.virtuales.some(v => v.k === key)) st.virtuales.push({ k: key, code: m.code, est: est, dir: s.dir, t: c[i].t + CFG.gran, stop: stopDe(est, s, c[i].c), n: s.n });
+      if (!st.virtuales.some(v => v.k === key)) st.virtuales.push({ k: key, code: m.code, est: est, dir: s.dir, t: c[i].t + CFG.gran, stop: stopDe(est, s, c[i].c), n: s.n, u: rg.unidades });
       if (m.bin !== false && price && abierto) st.binarias.filter(b => b.indexOf(m.group + '|' + est + '|') === 0).forEach(b => abrirBinaria(st, m, est, s, +b.split('|')[2], now, price, c[i].t));
       if (activo(st, m, est) && !st.espera[m.code] && !cfdDe(st, m.code)) {
         if (abierto && now - (c[i].t + CFG.gran) > CFG.tarde) omite(st, now, m, 'tarde');   // la tarea llegó tarde: esa entrada ya no es la de la señal
@@ -287,7 +298,7 @@ function resolver(st, m, c) {
   st.virtuales.filter(v => v.code === m.code).forEach(v => {
     if (c.length && c[0].t > v.t) { v.perdida = true; return; }
     const e = c.findIndex(k => k.t >= v.t); if (e < 0 || c.length - e < 5) return;   // con 5 velas desde la entrada, para medir también las binarias a 1, 3 y 5 velas en todas las señales
-    const r = simular(c, e, { estrategia: v.est, dir: v.dir, stop: v.stop, n: v.n }, m.rate); if (!r) return;
+    const r = simular(c, e, { estrategia: v.est, dir: v.dir, stop: v.stop, n: v.n, unidades: v.u }, m.rate); if (!r) return;
     const md = st.medidas[v.k] = st.medidas[v.k] || { n: 0, s: 0, s2: 0, g: 0, bin: [[0, 0], [0, 0], [0, 0]] };
     md.n++; md.s = r2(md.s + r.R, 4); md.s2 = r2(md.s2 + r.R * r.R, 4); if (r.R > 0) md.g++;
     r.bin.forEach((b, q) => { if (b >= 0) { md.bin[q][0]++; md.bin[q][1] += b; } });
@@ -344,7 +355,7 @@ function decidirPlanes(st, now) {
 /* lo que hará cada mercado al cerrar la vela de 4 h en curso (para que la web lo enseñe antes de que pase) */
 function nivelesDe(st, m, c, A, R) {
   const i = c.length - 1, D = m.dec + 1, out = { t: c[i].t, n: r2(A[i], m.dec + 2) };
-  if (activo(st, m, 'tortuga')) { const ch = canal(c, i + 1 - CFG.entrada, i + 1), c2 = canal(c, i + 1 - CFG.salida, i + 1); out.r = [r2(ch[0], D), r2(ch[1], D), r2(c2[0], D), r2(c2[1], D)]; }
+  if (activo(st, m, 'tortuga')) { const ch = canal(c, i + 1 - CFG.entrada, i + 1), c2 = canal(c, i + 1 - CFG.salida, i + 1); out.r = [r2(ch[0], D), r2(ch[1], D), r2(c2[0], D), r2(c2[1], D)]; const lg = regla(m, 'tortuga').lados; if (lg) out.s = lg; }
   if (activo(st, m, 'giro')) out.g = preGiros(c, i + 1, R).map(g => [g.dir, r2(g.extremo, D), r2(g.gatillo, D)]);
   st.niveles[m.code] = out;
 }
