@@ -203,16 +203,36 @@ async function precios(cl, ops, now, datos, avisos) {   // entrada (primer preci
     if (b && b.prices && b.prices.length && op.vence - +b.times[b.times.length - 1] <= 120 && +b.times[b.times.length - 1] > op.t) datos.salidas[op.id] = +b.prices[b.prices.length - 1]; else avisos.push('sin salida de ' + op.mer);
   }
 }
+/* velas de 5 minutos ya cerradas. Deriv da como mucho ~3,5 días por petición (1.000 velas de calendario, con fines de semana y noches dentro),
+   así que se pide hacia atrás hasta tener 1.100 y se guarda una copia en /tmp para la vuelta siguiente del bucle. */
+const CACHE = process.env.RETO_CACHE || require('os').tmpdir();
+function leeCache(sym) { try { return JSON.parse(fs.readFileSync(path.join(CACHE, 'umbral_m5_' + sym + '.json'), 'utf8')); } catch (e) { return []; } }
+function guardaCache(sym, c) { try { fs.writeFileSync(path.join(CACHE, 'umbral_m5_' + sym + '.json'), JSON.stringify(c)); } catch (e) { } }
+async function velasM5(cl, sym, now) {
+  const mapa = new Map(); leeCache(sym).forEach(x => mapa.set(x[0], x));
+  let end = 'latest';
+  for (let k = 0; k < 6; k++) {
+    const r = await cl.send({ ticks_history: sym, end: String(end), count: 1000, style: 'candles', granularity: 300 });
+    const c = (r.candles || []).filter(x => +x.epoch % 300 === 0); if (!c.length) break;
+    c.forEach(x => mapa.set(+x.epoch, [+x.epoch, +x.open, +x.high, +x.low, +x.close]));   // lo nuevo pisa lo guardado
+    let n = 0; mapa.forEach((v, t) => { if (t + 300 <= now) n++; });
+    if (n >= 1100) break;
+    end = +c[0].epoch - 1;
+  }
+  const todas = [...mapa.values()].filter(x => x[0] + 300 <= now).sort((a, b) => a[0] - b[0]).slice(-1200);
+  guardaCache(sym, todas); return todas;
+}
 async function traer(st, now) {
   const cl = await cliente(), datos = { salidas: {}, entradas: {} }, avisos = [];
   try {
     await precios(cl, st ? st.abiertas : [], now, datos, avisos);
     const min = new Date(now * 1000).getUTCMinutes();
     if (min % 15 < 5 && now % 300 <= 120) {   // acaba de cerrar una vela de cuarto de hora
-      const velas = {}, rs = await Promise.all(M.MER.map(mer => cl.send({ ticks_history: CFG.codigos[mer], end: 'latest', count: 1000, style: 'candles', granularity: 300 })));
+      const velas = {}, rs = await Promise.all(M.MER.map(mer => velasM5(cl, CFG.codigos[mer], now)));
       M.MER.forEach((mer, i) => {
-        const c = (rs[i].candles || []).filter(x => +x.epoch % 300 === 0 && +x.epoch + 300 <= now);   // solo velas ya cerradas
-        if (c.length >= 700) velas[mer] = { t: c.map(x => +x.epoch), o: c.map(x => +x.open), h: c.map(x => +x.high), l: c.map(x => +x.low), c: c.map(x => +x.close) };
+        const c = rs[i];
+        if (c.length >= 700) velas[mer] = { t: c.map(x => x[0]), o: c.map(x => x[1]), h: c.map(x => x[2]), l: c.map(x => x[3]), c: c.map(x => x[4]) };
+        else avisos.push('pocas velas de ' + mer + ': ' + c.length);
       });
       const s = senales(velas, now, st ? st.ultimaDecision : 0); datos.lista = s.lista; datos.mirado = s.mirado; datos.visto = s.visto; datos.pagos = {};
       if (s.lista.length) {
@@ -253,4 +273,4 @@ if (require.main === module) {
     console.log('reto: abiertas ' + st.abiertas.length + ' · medidas ' + st.n + ' · 1 %: ' + n3[1] + '/' + n3[0] + ' · fuertes: ' + f[1] + '/' + f[0] + ' · escalera: intento ' + E.intento + ', peldaño ' + E.peldano + ', guardado ' + E.guardado + ' · plan: ' + P.dinero + (r.avisos.length ? ' · avisos: ' + r.avisos.join(' | ') : ''));
   })().catch(e => { console.error('reto: ' + e.message); process.exit(1); });
 }
-module.exports = { CFG, paso, nuevo, senales, abrir, cerrar, sella, traer };
+module.exports = { CFG, paso, nuevo, senales, abrir, cerrar, sella, traer, velasM5 };
