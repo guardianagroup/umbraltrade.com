@@ -141,6 +141,63 @@ async def costes(cl, codes):
         json.dump(out, f)
 
 
+DUR_P = [(15, 'm'), (30, 'm'), (1, 'h'), (2, 'h'), (4, 'h'), (8, 'h'), (1, 'd'), (2, 'd'), (3, 'd'), (5, 'd'), (7, 'd'), (14, 'd'), (30, 'd'), (60, 'd'), (90, 'd'), (180, 'd'), (365, 'd')]
+PAGOS = ('OTC_SPC OTC_NDX OTC_DJI OTC_GDAXI OTC_FTSE OTC_FCHI OTC_SX5E OTC_AEX OTC_SSMI OTC_N225 OTC_HSI OTC_AS51 '
+         'frxEURUSD frxGBPUSD frxUSDJPY frxAUDUSD frxXAUUSD frxXAGUSD R_100 R_75 1HZ100V').split()
+
+
+async def pagos(cl, codes, info):
+    """Lo que paga Deriv en cada contrato de opciones ahora mismo (apuesta de 10 USD): Sube/Baja por vencimiento (de 15 min a 365 días),
+    Superior/Inferior con barrera y Toca/No toca. Sirve para ver si el pago tiene en cuenta la deriva del activo y la volatilidad."""
+    out = {}
+
+    async def una(code, tipo, n, u, barrera=None):
+        m = {'proposal': 1, 'amount': 10, 'basis': 'stake', 'contract_type': tipo, 'currency': 'USD', 'underlying_symbol': code, 'duration': n, 'duration_unit': u}
+        if barrera is not None:
+            m['barrier'] = barrera
+        p = await cl.pide(m, tries=2)
+        q = p.get('proposal') or {}
+        if q.get('payout'):
+            return {'pago': float(q['payout']) / 10 - 1, 'spot': q.get('spot'), 'vence': q.get('date_expiry'), 'inicio': q.get('date_start'), 'texto': (q.get('longcode') or '')[:170]}
+        e = p.get('error') or {}
+        return {'error': e.get('code'), 'msg': str(e.get('message'))[:220]}
+
+    for code in codes:
+        r = {'tipos': [], 'callput': {}, 'barrera': {}, 'toca': {}, 'hora': int(time.time())}
+        d = await cl.pide({'contracts_for': code}, tries=2)
+        av = (d.get('contracts_for') or {}).get('available') or []
+        vistos = set()
+        for x in av:
+            k = (x.get('contract_type'), x.get('contract_category'), x.get('expiry_type'), x.get('barrier_category'), x.get('min_contract_duration'), x.get('max_contract_duration'), x.get('barriers'))
+            if k not in vistos:
+                vistos.add(k)
+                r['tipos'].append(list(k) + [x.get('barrier'), x.get('high_barrier'), x.get('low_barrier')])
+        spot = None
+        for n, u in DUR_P:
+            fila = {}
+            for tipo in ('CALL', 'PUT'):
+                fila[tipo] = await una(code, tipo, n, u)
+                if fila[tipo].get('spot'):
+                    spot = float(fila[tipo]['spot'])
+            r['callput'][str(n) + u] = fila
+        dec = (info.get(code) or {}).get('dec', 2)
+        if spot:
+            for n, u in ((1, 'd'), (7, 'd'), (30, 'd')):
+                for frac in (0.005, 0.01, 0.02):
+                    for sg in ('+', '-'):
+                        b = sg + ('%.*f' % (dec, spot * frac))
+                        k = '%d%s %s%.3f' % (n, u, sg, frac)
+                        r['barrera'][k] = {t: await una(code, t, n, u, b) for t in ('CALL', 'PUT')}
+                        r['toca'][k] = {t: await una(code, t, n, u, b) for t in ('ONETOUCH', 'NOTOUCH')}
+        out[code] = r
+        g = lambda k, t: (r['callput'].get(k, {}).get(t, {}) or {}).get('pago')
+        log('pagos', code, 'spot', spot, 'CALL/PUT 15m', g('15m', 'CALL'), g('15m', 'PUT'), '1h', g('1h', 'CALL'), g('1h', 'PUT'), '1d', g('1d', 'CALL'), g('1d', 'PUT'), '7d', g('7d', 'CALL'), g('7d', 'PUT'),
+            '30d', g('30d', 'CALL'), g('30d', 'PUT'), '90d', g('90d', 'CALL'), g('90d', 'PUT'), '365d', g('365d', 'CALL'), g('365d', 'PUT'), '| error 1d', (r['callput'].get('1d', {}).get('CALL', {}) or {}).get('msg'))
+        with open(os.path.join(OUT, 'deriv_pagos.json'), 'w') as f:
+            json.dump(out, f)
+
+
+
 async def main():
     cl = Cliente()
     await cl.abre()
@@ -155,6 +212,13 @@ async def main():
                       'abierto': bool(s.get('exchange_is_open')) and not s.get('is_trading_suspended')}
     with open(os.path.join(OUT, 'deriv_simbolos.json'), 'w') as f:
         json.dump(info, f)
+    if os.environ.get('SOLO_PAGOS') == '1':
+        await pagos(cl, PAGOS, info)
+        try:
+            await cl.ws.close()
+        except Exception:
+            pass
+        return
     if os.environ.get('COSTES', '1') == '1':
         try:
             await costes(cl, REALES + [c for c in SINT_M5 if c in info])

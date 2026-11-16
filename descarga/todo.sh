@@ -23,6 +23,7 @@ case "$PARTE" in
   m1-*) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 "${PARTE#m1-}" ;;
   deriv) COSTES=0 python3 deriv.py "$OUT" ;;
   costes) SOLO_COSTES=1 python3 deriv.py "$OUT" ;;
+  pagos) SOLO_PAGOS=1 python3 deriv.py "$OUT" ;;
   binance) HILOS=4 python3 binance.py "$OUT" ;;
   *) echo "parte desconocida: $PARTE"; exit 1 ;;
 esac
