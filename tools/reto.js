@@ -12,7 +12,10 @@
        otra con 50 €;
      · plan (subir poco a poco, resguardando): 50 € y el 10 % de lo que haya en cada señal fuerte. Con 50 € ya no hace falta la escalera corta que
        pedía empezar con 10 € (CFG.plan.escalera = 0; con un valor mayor, primero juega esa escalera a todo y vuelve a ella si baja de `vuelve`).
-   En las dos, lo apostado se reparte a partes iguales entre los mercados del grupo (hasta 3). No se entra si Deriv paga menos del 75 %.
+     · campana (la idea de Francisco de «tocar la campana de un salto»): 50 € y a todo en CADA señal del 1 %, vaya sola o acompañada, en una sola
+       operación (la más segura de esa vela); no guarda nada: o llega al 9.º peldaño y cobra, o pierde la entrada y empieza otra con 50 €.
+   En la escalera y el plan, lo apostado se reparte a partes iguales entre los mercados del grupo (hasta 3). No se entra si Deriv paga menos del 75 %
+   (la campana pide un 78 %, porque juega también las señales que van solas, que aciertan menos).
    El marcador cuenta todas las señales, operadas o no: por confianza, por dirección, fuertes y solas, y por mercado.
 
    Uso:  node tools/reto.js datos/reto.json   (un paso con los datos de Deriv de ahora) */
@@ -21,9 +24,10 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const M = require('./modelo.js'), MODELO = require('./modelo15.json');
 const URL_DERIV = 'wss://api.derivws.com/trading/v1/options/ws/public';
 const CFG = {
-  v: 3, plazo: 900, pagoMin: 0.75, min: 0.5, nivelApunta: 1, nivelFuerte: 3, grupoMin: 2, partesMax: 3, maxPago: null,   // maxPago: tope de pago por contrato (null = sin tope hasta confirmarlo en la cuenta)
+  v: 4, plazo: 900, pagoMin: 0.75, min: 0.5, nivelApunta: 1, nivelFuerte: 3, grupoMin: 2, partesMax: 3, maxPago: null,   // maxPago: tope de pago por contrato (null = sin tope hasta confirmarlo en la cuenta)
   escalera: { inicio: 50, aTodo: 4, guarda: 0.5, tope: 9 },
   plan: { inicio: 50, escalera: 0, fraccion: 0.10, vuelve: 0 },
+  campana: { inicio: 50, aTodo: 9, guarda: 0, tope: 9, pagoMin: 0.78, nivel: 3 },
   codigos: { EURUSD: 'frxEURUSD', GBPUSD: 'frxGBPUSD', USDJPY: 'frxUSDJPY', EURJPY: 'frxEURJPY', XAUUSD: 'frxXAUUSD' },
   nombres: { EURUSD: 'EUR/USD', GBPUSD: 'GBP/USD', USDJPY: 'USD/JPY', EURJPY: 'EUR/JPY', XAUUSD: 'Oro/USD' },
   niveles: ['', '5 % más seguro', '2 % más seguro', '1 % más seguro', '0,5 % más seguro']
@@ -34,11 +38,12 @@ const eur = x => x.toFixed(2).replace('.', ',') + ' €', pct = x => Math.round(
 function nuevo(now) {
   return { v: CFG.v, creado: now, actualizado: now, huella: '', n: 0, abiertas: [], senales: [], marcador: {},
     pistas: {
-      escalera: { intento: 0, peldano: 0, dinero: 0, guardado: 0, puesto: 0, mejor: 0, llegadas: {}, historia: [], jugada: null, curva: [[now, 0]] },
+      escalera: pistaEsc(now), campana: pistaEsc(now),
       plan: { fase: CFG.plan.escalera > 0 ? 0 : 1, intento: 0, peldano: 0, dinero: 0, puesto: 0, pico: 0, n: 0, ganadas: 0, historia: [], jugada: null, curva: [[now, 0]] }
     },
     eventos: [], ultimaDecision: 0, mirado: [], limites: {} };
 }
+function pistaEsc(now) { return { intento: 0, peldano: 0, dinero: 0, guardado: 0, puesto: 0, mejor: 0, llegadas: {}, historia: [], jugada: null, curva: [[now, 0]] }; }
 function evento(st, now, tipo, txt, extra) { st.eventos.unshift(Object.assign({ t: now, tipo: tipo, txt: txt }, extra || {})); if (st.eventos.length > 250) st.eventos.length = 250; }
 function suma(st, clave, gana, pago) {   // marcador: [señales, aciertos, suma de pagos, resultado por euro puesto]
   const m = st.marcador[clave] || (st.marcador[clave] = [0, 0, 0, 0]); m[0]++; if (gana) m[1]++; m[2] = r2(m[2] + pago, 4); m[3] = r2(m[3] + (gana ? pago : -1), 4);
@@ -70,14 +75,14 @@ function reparte(total, F, st) {   // reparte `total` a partes iguales entre las
   if (!m || total < CFG.min) return [];
   return F.slice(0, m).map(op => { let a = Math.floor(total / m * 100 + 1e-6) / 100; if (CFG.maxPago) a = Math.min(a, Math.floor(CFG.maxPago / (1 + op.pago) * 100) / 100); return { id: op.id, mer: op.mer, apuesta: a, pago: op.pago }; });   // a la baja, al céntimo: nunca se apuesta más de lo que hay
 }
-function apostarEscalera(st, now, F) {
-  const E = st.pistas.escalera, K = CFG.escalera; if (E.jugada) return null;
+function apostarEscalera(st, now, F, clave) {
+  clave = clave || 'escalera'; const E = st.pistas[clave], K = CFG[clave], nom = clave === 'campana' ? 'Campana' : 'Escalera'; if (E.jugada || !F.length) return null;
   if (E.dinero < CFG.min) { E.guardado = r2(E.guardado + E.dinero); E.intento++; E.peldano = 0; E.dinero = K.inicio; E.puesto = r2(E.puesto + K.inicio); }
   const partes = reparte(E.dinero, F, st); if (!partes.length) return null;
   const total = r2(partes.reduce((a, b) => a + b.apuesta, 0)), sobra = r2(E.dinero - total);
   if (sobra > 0.005) E.guardado = r2(E.guardado + sobra);                         // lo que el tope no deja apostar se guarda
   E.jugada = { t: now, partes: partes, total: total, peldano: E.peldano + 1 }; E.dinero = 0;
-  return 'Escalera, peldaño ' + (E.peldano + 1) + ': ' + eur(total) + (partes.length > 1 ? ' repartidos en ' + partes.length : '') + '.';
+  return nom + ', peldaño ' + (E.peldano + 1) + ': ' + eur(total) + (partes.length > 1 ? ' repartidos en ' + partes.length : '') + '.';
 }
 function apostarPlan(st, now, F) {
   const P = st.pistas.plan, K = CFG.plan; if (P.jugada) return null;
@@ -92,20 +97,20 @@ function vuelta(jugada, cerradas) {   // lo que devuelve una jugada ya vencida: 
   let v = 0, ok = 0; jugada.partes.forEach(p => { const op = cerradas[p.id]; if (!op || op.nula) v += p.apuesta; else if (op.gana) { v += p.apuesta * (1 + p.pago); ok++; } });
   return [r2(v), ok];
 }
-function liquidarEscalera(st, now, cerradas) {
-  const E = st.pistas.escalera, K = CFG.escalera, J = E.jugada; if (!J || !J.partes.every(p => cerradas[p.id])) return;
+function liquidarEscalera(st, now, cerradas, clave) {
+  clave = clave || 'escalera'; const E = st.pistas[clave], K = CFG[clave], nom = clave === 'campana' ? 'Campana' : 'Escalera', J = E.jugada; if (!J || !J.partes.every(p => cerradas[p.id])) return;
   const v = vuelta(J, cerradas), dev = v[0]; E.jugada = null; E.dinero = r2(E.dinero + dev); let txt;
   if (dev > J.total + 0.005) {
     E.peldano++; E.llegadas[E.peldano] = (E.llegadas[E.peldano] || 0) + 1; if (E.peldano > E.mejor) E.mejor = E.peldano;
-    txt = 'Escalera: peldaño ' + E.peldano + ' superado, ' + eur(E.dinero) + '.';
-    if (E.peldano >= K.tope) { E.guardado = r2(E.guardado + E.dinero); txt += ' Tope alcanzado: se cobra todo.'; E.historia.unshift({ t: now, intento: E.intento, peldanos: E.peldano, cobrado: E.dinero }); E.dinero = 0; E.peldano = 0; }
-    else if (E.peldano >= K.aTodo) { const g = r2(E.dinero * K.guarda); E.guardado = r2(E.guardado + g); E.dinero = r2(E.dinero - g); txt += ' Se guarda la mitad (' + eur(g) + ') y siguen ' + eur(E.dinero) + '.'; }
+    txt = nom + ': peldaño ' + E.peldano + ' superado, ' + eur(E.dinero) + '.';
+    if (E.peldano >= K.tope) { E.guardado = r2(E.guardado + E.dinero); txt += clave === 'campana' ? ' ¡Suena la campana! Se cobra todo.' : ' Tope alcanzado: se cobra todo.'; E.historia.unshift({ t: now, intento: E.intento, peldanos: E.peldano, cobrado: E.dinero }); E.dinero = 0; E.peldano = 0; }
+    else if (K.guarda > 0 && E.peldano >= K.aTodo) { const g = r2(E.dinero * K.guarda); E.guardado = r2(E.guardado + g); E.dinero = r2(E.dinero - g); txt += ' Se guarda la mitad (' + eur(g) + ') y siguen ' + eur(E.dinero) + '.'; }
   } else if (E.dinero < CFG.min) {
-    txt = 'Escalera: falla en el peldaño ' + (E.peldano + 1) + ' y se pierden ' + eur(J.total) + '. La siguiente señal fuerte empieza otra con ' + K.inicio + ' €.';
+    txt = nom + ': falla en el peldaño ' + (E.peldano + 1) + ' y se pierden ' + eur(J.total) + '. La siguiente señal' + (clave === 'campana' ? '' : ' fuerte') + ' empieza otra con ' + K.inicio + ' €.';
     E.historia.unshift({ t: now, intento: E.intento, peldanos: E.peldano, cobrado: 0 }); E.guardado = r2(E.guardado + E.dinero); E.dinero = 0; E.peldano = 0;
-  } else txt = 'Escalera: ' + v[1] + ' de ' + J.partes.length + ' acertadas; quedan ' + eur(E.dinero) + ' y sigue en el peldaño ' + (E.peldano + 1) + '.';
+  } else txt = nom + ': ' + v[1] + ' de ' + J.partes.length + ' acertadas; quedan ' + eur(E.dinero) + ' y sigue en el peldaño ' + (E.peldano + 1) + '.';
   if (E.historia.length > 80) E.historia.length = 80;
-  punto(E.curva, now, E.guardado + E.dinero - E.puesto); evento(st, now, 'escalera', txt);
+  punto(E.curva, now, E.guardado + E.dinero - E.puesto); evento(st, now, clave, txt);
 }
 function liquidarPlan(st, now, cerradas) {
   const P = st.pistas.plan, K = CFG.plan, J = P.jugada; if (!J || !J.partes.every(p => cerradas[p.id])) return;
@@ -141,6 +146,7 @@ function cerrar(st, now, op, salida, entrada) {
     for (let n = CFG.nivelApunta; n <= op.nivel; n++) suma(st, 'n' + n, gana, op.pago);
     if (op.nivel >= CFG.nivelFuerte) { suma(st, op.fuerte ? 'fuerte' : 'sola', gana, op.pago); suma(st, op.lado, gana, op.pago); suma(st, 'm_' + op.mer, gana, op.pago); }
     if (op.opera) suma(st, 'operadas', gana, op.pago);
+    if (op.campana) suma(st, 'campana', gana, op.pago);
     if (op.fuerte) {   // la idea de las dos cuentas: ¿acierta más la fuerte que llega después de una jugada perdida?
       const G = st.fGrupo || (st.fGrupo = { vela: 0, ok: 0, n: 0, prev: null });
       if (op.vela !== G.vela) { if (G.n) G.prev = G.ok / G.n > 0.55; G.vela = op.vela; G.ok = 0; G.n = 0; }   // una jugada repartida gana si acierta más del 55 %
@@ -152,7 +158,7 @@ function cerrar(st, now, op, salida, entrada) {
 }
 /* cadena de huellas: cada operación cerrada (o anulada) lleva la huella de la anterior; no se puede retocar el historial sin que se note */
 function sella(st, op) {
-  const base = { id: op.id, t: op.t, mer: op.mer, lado: op.lado, p: op.p, nivel: op.nivel, fuerte: op.fuerte, entrada: op.entrada, salida: op.salida == null ? null : op.salida, pago: op.pago, gana: op.gana == null ? null : op.gana, opera: op.opera };
+  const base = { id: op.id, t: op.t, mer: op.mer, lado: op.lado, p: op.p, nivel: op.nivel, fuerte: op.fuerte, entrada: op.entrada, salida: op.salida == null ? null : op.salida, pago: op.pago, gana: op.gana == null ? null : op.gana, opera: op.opera, campana: !!op.campana };
   op.h = crypto.createHash('sha256').update(st.huella + JSON.stringify(base)).digest('hex'); st.huella = op.h;
   st.senales.unshift(op); if (st.senales.length > 400) st.senales.length = 400;
 }
@@ -171,23 +177,27 @@ function paso(st, datos, now) {
   st.abiertas = sigue;
   // las jugadas se liquidan cuando todas sus partes han vencido (las partes cerradas en pasos anteriores están en st.senales)
   const todas = id => cerradas[id] || st.senales.find(o => o.id === id);
-  ['escalera', 'plan'].forEach(k => { const J = st.pistas[k].jugada; if (!J) return; const c = {}; let ok = true; J.partes.forEach(p => { const o = todas(p.id); if (o && !st.abiertas.includes(o)) c[p.id] = o; else ok = false; }); if (ok) (k === 'escalera' ? liquidarEscalera : liquidarPlan)(st, now, c); });
+  ['escalera', 'campana', 'plan'].forEach(k => { const J = st.pistas[k].jugada; if (!J) return; const c = {}; let ok = true; J.partes.forEach(p => { const o = todas(p.id); if (o && !st.abiertas.includes(o)) c[p.id] = o; else ok = false; }); if (ok) { if (k === 'plan') liquidarPlan(st, now, c); else liquidarEscalera(st, now, c, k); } });
   // 2) señales nuevas
   if (datos.lista && datos.lista.length) {
     const nuevas = datos.lista.filter(s => s.t > st.ultimaDecision && !st.abiertas.some(o => o.mer === s.mer)).map(s => abrir(st, now, s, (datos.pagos || {})[s.mer] || []));
     const F = nuevas.filter(o => o.opera).sort((a, b) => Math.abs(b.p - 0.5) - Math.abs(a.p - 0.5));
-    const fuertes = nuevas.filter(o => o.fuerte);
+    const fuertes = nuevas.filter(o => o.fuerte), cuenta = o => CFG.nombres[o.mer] + ' ' + (o.lado === 'sube' ? 'Sube' : 'Baja') + ' ' + pct(o.lado === 'sube' ? o.p : 1 - o.p) + (o.pago != null ? ', Deriv paga ' + pct(o.pago) : '');
+    // la campana juega una sola operación: la más segura de esta vela entre las del 1 % (sola o acompañada) que paguen lo bastante
+    const KC = CFG.campana, C1 = nuevas.filter(o => o.nivel >= KC.nivel && o.pago != null && o.pago >= KC.pagoMin).sort((a, b) => Math.abs(b.p - 0.5) - Math.abs(a.p - 0.5)).slice(0, 1);
+    const c = apostarEscalera(st, now, C1, 'campana'); if (c) C1[0].campana = true;
     if (fuertes.length) {
-      let txt = 'Señal fuerte (' + fuertes.length + ' mercados a la vez): ' + fuertes.map(o => CFG.nombres[o.mer] + ' ' + (o.lado === 'sube' ? 'Sube' : 'Baja') + ' ' + pct(o.lado === 'sube' ? o.p : 1 - o.p) + (o.pago != null ? ', Deriv paga ' + pct(o.pago) : '')).join(' · ') + '.';
+      let txt = 'Señal fuerte (' + fuertes.length + ' mercados a la vez): ' + fuertes.map(cuenta).join(' · ') + '.';
       if (F.length) { const a = apostarEscalera(st, now, F), b = apostarPlan(st, now, F); if (a) txt += ' ' + a; if (b) txt += ' ' + b; }
       else txt += ' No se entra: ' + (fuertes[0].por || 'sin precio') + '.';
+      if (c) txt += ' ' + c;
       evento(st, now, 'senal', txt, { ids: fuertes.map(o => o.id) });
-    }
+    } else if (c) evento(st, now, 'senal1', 'Señal del 1 % que va sola: ' + cuenta(C1[0]) + '. ' + c, { ids: [C1[0].id] });
   }
   if (datos.visto && datos.visto > st.ultimaDecision) st.ultimaDecision = datos.visto;
   if (datos.mirado) st.mirado = [now, datos.mirado];
   if (datos.limites) Object.assign(st.limites, datos.limites);
-  st.cfg = { escalera: CFG.escalera, plan: CFG.plan, pagoMin: CFG.pagoMin, min: CFG.min, partesMax: CFG.partesMax };   // para que la página cuente las reglas tal como están
+  st.cfg = { escalera: CFG.escalera, plan: CFG.plan, campana: CFG.campana, pagoMin: CFG.pagoMin, min: CFG.min, partesMax: CFG.partesMax };   // para que la página cuente las reglas tal como están
   st.actualizado = now; return st;
 }
 
@@ -271,14 +281,15 @@ if (require.main === module) {
   (async () => {
     const file = process.argv[2] || 'reto.json';
     let st = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+    if (st && st.v === 3) { st.pistas.campana = pistaEsc(Math.floor(Date.now() / 1000)); st.v = 4; }   // la versión 4 solo añade la campana: se conserva lo anterior
     if (st && st.v !== CFG.v) st = null;                                         // cambio de reglas: cuenta nueva
     const limpia = s => JSON.stringify(Object.assign({}, s, { actualizado: 0, mirado: 0, guardado: 0, avisos: 0 })), antes = st ? limpia(st) : '';
     const r = await traer(st, Math.floor(Date.now() / 1000)); st = paso(st, r.datos, r.now); st.avisos = r.avisos.slice(0, 8);
     const cambia = limpia(st) !== antes, toca = !st.guardado || r.now - st.guardado >= 900 || !!r.datos.mirado;   // se guarda al cambiar algo, en cada decisión, o cada 15 min para decir que sigue vivo
     if (!cambia && !toca) { console.log('reto: sin cambios'); return; }
     st.guardado = r.now; fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true }); fs.writeFileSync(file + '.tmp', JSON.stringify(st) + '\n'); fs.renameSync(file + '.tmp', file);
-    const f = st.marcador.fuerte || [0, 0], n3 = st.marcador.n3 || [0, 0], E = st.pistas.escalera, P = st.pistas.plan;
-    console.log('reto: abiertas ' + st.abiertas.length + ' · medidas ' + st.n + ' · 1 %: ' + n3[1] + '/' + n3[0] + ' · fuertes: ' + f[1] + '/' + f[0] + ' · escalera: intento ' + E.intento + ', peldaño ' + E.peldano + ', guardado ' + E.guardado + ' · plan: ' + P.dinero + (r.avisos.length ? ' · avisos: ' + r.avisos.join(' | ') : ''));
+    const f = st.marcador.fuerte || [0, 0], n3 = st.marcador.n3 || [0, 0], E = st.pistas.escalera, P = st.pistas.plan, Q = st.pistas.campana;
+    console.log('reto: abiertas ' + st.abiertas.length + ' · medidas ' + st.n + ' · 1 %: ' + n3[1] + '/' + n3[0] + ' · fuertes: ' + f[1] + '/' + f[0] + ' · escalera: intento ' + E.intento + ', peldaño ' + E.peldano + ', guardado ' + E.guardado + ' · plan: ' + P.dinero + ' · campana: intento ' + Q.intento + ', peldaño ' + Q.peldano + (r.avisos.length ? ' · avisos: ' + r.avisos.join(' | ') : ''));
   })().catch(e => { console.error('reto: ' + e.message); process.exit(1); });
 }
-module.exports = { CFG, paso, nuevo, senales, abrir, cerrar, sella, traer, velasM5 };
+module.exports = { CFG, paso, nuevo, senales, abrir, cerrar, sella, traer, velasM5, pistaEsc };
