@@ -1,0 +1,1 @@
+Herramientas temporales para descargar datos de mercado públicos (estudio de Umbral Trade). Los datos se guardan cifrados y esta rama se borra al terminar.
