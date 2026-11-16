@@ -240,6 +240,71 @@ async def sesgo(cl, codes, horas):
 
 
 
+ZONAS = 'frxEURUSD frxGBPUSD frxUSDJPY frxAUDUSD frxXAUUSD OTC_SPC OTC_NDX OTC_GDAXI R_100 R_50'.split()
+
+
+async def zonas(cl, codes, info):
+    """Contratos «de zona» (no de dirección): Superior/Inferior con barrera, Toca/No toca, Termina dentro/fuera y Se queda dentro/Sale.
+    Para cada mercado: su volatilidad diaria reciente (60 velas diarias) y lo que paga Deriv con barreras a 0,5 · 1 · 1,5 · 2 desviaciones del plazo.
+    Sirve para comparar la probabilidad que cobra Deriv con la que sale de 20 años de historia."""
+    out = {}
+
+    async def una(m):
+        p = await cl.pide(dict(m, proposal=1, amount=10, basis='stake', currency='USD'), tries=2)
+        q = p.get('proposal') or {}
+        if q.get('payout'):
+            return {'pago': round(float(q['payout']) / 10 - 1, 4), 'spot': q.get('spot'), 'texto': (q.get('longcode') or '')[:150]}
+        e = p.get('error') or {}
+        return {'error': e.get('code'), 'msg': str(e.get('message'))[:160]}
+
+    for code in codes:
+        r = {'tipos': [], 'hora': int(time.time()), 'q': []}
+        d = await cl.pide({'contracts_for': code}, tries=2)
+        av = (d.get('contracts_for') or {}).get('available') or []
+        vistos = set()
+        for x in av:
+            k = (x.get('contract_type'), x.get('contract_category'), x.get('expiry_type'), x.get('min_contract_duration'), x.get('max_contract_duration'), x.get('barriers'))
+            if k not in vistos:
+                vistos.add(k)
+                r['tipos'].append(list(k) + [x.get('barrier'), x.get('high_barrier'), x.get('low_barrier')])
+        h = await cl.pide({'ticks_history': code, 'end': 'latest', 'count': 90, 'style': 'candles', 'granularity': 86400}, tries=3)
+        cs = [float(c['close']) for c in (h.get('candles') or [])]
+        if len(cs) < 30:
+            out[code] = r
+            continue
+        rets = np.diff(np.log(np.array(cs[-61:])))
+        sd = float(np.std(rets))
+        spot = cs[-1]
+        r['sd'] = sd
+        r['spot'] = spot
+        dec = (info.get(code) or {}).get('dec', 2)
+        fmt = lambda v: '%.*f' % (dec, v)
+        tipos = set(t[0] for t in r['tipos'])
+        durs = [(1, 'd'), (2, 'd'), (7, 'd'), (14, 'd'), (30, 'd')] + ([(2, 'h'), (6, 'h')] if any(t[2] == 'intraday' and t[0] in ('ONETOUCH', 'HIGHER', 'RANGE', 'EXPIRYRANGE') for t in r['tipos']) else [])
+        for n, u in durs:
+            T = n if u == 'd' else n / 24.0
+            w = sd * (T ** 0.5)
+            for k in (0.5, 1.0, 1.5, 2.0):
+                up, dn = spot * float(np.exp(k * w)), spot * float(np.exp(-k * w))
+                base = {'underlying_symbol': code, 'duration': n, 'duration_unit': u}
+                fila = {'d': '%d%s' % (n, u), 'k': k, 'up': up, 'dn': dn}
+                for tipo, args in (('HIGHER', {'barrier': fmt(up)}), ('LOWER', {'barrier': fmt(up)}), ('HIGHER_ab', {'barrier': fmt(dn)}), ('LOWER_ab', {'barrier': fmt(dn)}),
+                                   ('ONETOUCH', {'barrier': fmt(up)}), ('NOTOUCH', {'barrier': fmt(up)}), ('ONETOUCH_ab', {'barrier': fmt(dn)}), ('NOTOUCH_ab', {'barrier': fmt(dn)}),
+                                   ('EXPIRYRANGE', {'barrier': fmt(up), 'barrier2': fmt(dn)}), ('EXPIRYMISS', {'barrier': fmt(up), 'barrier2': fmt(dn)}),
+                                   ('RANGE', {'barrier': fmt(up), 'barrier2': fmt(dn)}), ('UPORDOWN', {'barrier': fmt(up), 'barrier2': fmt(dn)})):
+                    ct = tipo.split('_')[0]
+                    if ct not in tipos:
+                        continue
+                    fila[tipo] = await una(dict(base, contract_type=ct, **args))
+                r['q'].append(fila)
+        out[code] = r
+        ej = next((x for x in r['q'] if x['d'] == '7d' and x['k'] == 1.0), None)
+        log('zonas', code, 'sd diaria %.4f' % sd, 'tipos', sorted(tipos), '| 7d k=1:', json.dumps(ej)[:500] if ej else '-')
+        with open(os.path.join(OUT, 'deriv_zonas.json'), 'w') as f:
+            json.dump(out, f)
+
+
+
 async def main():
     cl = Cliente()
     await cl.abre()
@@ -256,6 +321,13 @@ async def main():
         json.dump(info, f)
     if os.environ.get('SOLO_SESGO'):
         await sesgo(cl, SESGO, float(os.environ['SOLO_SESGO']))
+        try:
+            await cl.ws.close()
+        except Exception:
+            pass
+        return
+    if os.environ.get('SOLO_ZONAS') == '1':
+        await zonas(cl, ZONAS, info)
         try:
             await cl.ws.close()
         except Exception:
