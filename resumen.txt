@@ -1,0 +1,2 @@
+M1 USA500IDXUSD 163 s {'ConnectionResetError': 43, 'ok': 169, 'TimeoutError': 6, '503': 5, 'RemoteDisconnected': 2} m1 185737 M5 37199 M1 guardadas 0 2026-05-01 fallos 1
+fallos definitivos 1 ['/datafeed/USA500IDXUSD/2026/05/05/BID_candles_min_1.bi5']
