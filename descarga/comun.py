@@ -56,10 +56,17 @@ def guarda(carpeta, nombre, t, o, h, l, c, v=None, escala=1, extra=None, **mas):
 
 
 def cierra(carpeta):
+    """Guarda el índice y el registro (se suman a lo que ya hubiera en la carpeta)."""
     os.makedirs(carpeta, exist_ok=True)
-    with open(os.path.join(carpeta, 'meta.json'), 'w') as f:
-        json.dump(META, f)
-    with open(os.path.join(carpeta, 'log.txt'), 'w') as f:
+    f1, f2 = os.path.join(carpeta, 'meta.json'), os.path.join(carpeta, 'log.txt')
+    todo = {}
+    if os.path.exists(f1):
+        with open(f1) as f:
+            todo = json.load(f)
+    todo.update(META)
+    with open(f1, 'w') as f:
+        json.dump(todo, f)
+    with open(f2, 'a') as f:
         f.write('\n'.join(LOG) + '\n')
 
 

@@ -43,7 +43,7 @@ def baja(ruta, tries=8):
             time.sleep(min(20, 1 + k))
     return None
 REC = np.dtype([('t', '>i4'), ('f1', '>i4'), ('f2', '>i4'), ('f3', '>i4'), ('f4', '>i4'), ('v', '>f4')])
-HILOS = int(os.environ.get('HILOS', '16'))
+HILOS = int(os.environ.get('HILOS', '4'))
 FALLOS = []
 MAPA = {}   # por instrumento: qué columna es o, c, l, h
 

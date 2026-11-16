@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
 # Descarga una parte de los datos del estudio, la cifra con la clave pública y la deja en la rama temporal datos-<parte>.
+# "limpia" borra todas las ramas temporales; "fin" borra también la rama de estas herramientas.
 set -euo pipefail
-PARTE="${1:-h1}"
+PARTE="${1:-h1a}"
 cd "$(dirname "$0")"
+REMOTO="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+if [ "$PARTE" = "limpia" ] || [ "$PARTE" = "fin" ]; then
+  for r in $(git ls-remote "$REMOTO" 'refs/heads/datos-*' | cut -f2); do git push -q "$REMOTO" --delete "$r" && echo "borrada $r"; done
+  if [ "$PARTE" = "fin" ]; then git push -q "$REMOTO" --delete refs/heads/estudio && echo "borrada la rama estudio"; fi
+  exit 0
+fi
 OUT="$PWD/out"; rm -rf "$OUT"; mkdir -p "$OUT"
 python3 -m pip install -q numpy websockets >/dev/null 2>&1 || python3 -m pip install -q --break-system-packages numpy websockets
-FX1="EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,EURJPY,GBPJPY,EURGBP,AUDJPY,EURAUD,EURCAD"
-FX2="EURCHF,GBPAUD,AUDCAD,AUDCHF,AUDNZD,EURNZD,GBPCAD,GBPCHF,GBPNZD,NZDJPY,USDMXN,USDPLN"
-MET="XAUUSD,XAGUSD,XPTUSD,XPDUSD,XPTCMDUSD,XPDCMDUSD"
-IDX="USATECHIDXUSD,USA500IDXUSD,USA30IDXUSD,DEUIDXEUR,GBRIDXGBP,FRAIDXEUR,EUSIDXEUR,NLDIDXEUR,CHEIDXCHF,JPNIDXJPY,HKGIDXHKD,AUSIDXAUD"
 case "$PARTE" in
-  prueba) python3 duka.py h1 "$OUT" 2022 EURUSD,BTCUSD; HILOS=4 python3 duka.py m1 "$OUT" 2026-08-01 2026-11-01 XAUUSD+; HILOS=32 python3 duka.py m1 "$OUT" 2026-05-01 2026-11-01 USA500IDXUSD ;;
-  h1a) python3 duka.py h1 "$OUT" 2003 "$FX1" ;;
-  h1b) python3 duka.py h1 "$OUT" 2003 "$FX2" ;;
-  h1c) python3 duka.py h1 "$OUT" 2003 "$MET,$IDX,BTCUSD,ETHUSD" ;;
-  m1a) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 EURUSD+,GBPUSD+,AUDUSD,USDCAD ;;
-  m1b) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 USDJPY+,USDCHF,NZDUSD,EURJPY ;;
-  m1c) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 XAUUSD+,XAGUSD,GBPJPY,EURGBP ;;
-  m1d) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 USA500IDXUSD+,DEUIDXEUR+,USATECHIDXUSD,GBRIDXGBP ;;
-  deriv) python3 deriv.py "$OUT" ;;
+  h1a) python3 duka.py h1 "$OUT" 2003 EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD ;;
+  h1b) python3 duka.py h1 "$OUT" 2003 EURJPY,GBPJPY,EURGBP,AUDJPY,EURAUD,EURCAD,EURCHF ;;
+  h1c) python3 duka.py h1 "$OUT" 2003 GBPAUD,AUDCAD,AUDCHF,AUDNZD,EURNZD,GBPCAD,GBPCHF ;;
+  h1d) python3 duka.py h1 "$OUT" 2003 GBPNZD,NZDJPY,USDMXN,USDPLN,XAUUSD,XAGUSD,BTCUSD,ETHUSD ;;
+  h1e) python3 duka.py h1 "$OUT" 2008 USATECHIDXUSD,USA500IDXUSD,USA30IDXUSD,DEUIDXEUR,GBRIDXGBP,FRAIDXEUR ;;
+  h1f) python3 duka.py h1 "$OUT" 2008 EUSIDXEUR,NLDIDXEUR,CHEIDXCHF,JPNIDXJPY,HKGIDXHKD,AUSIDXAUD,XPTCMDUSD,XPDCMDUSD ;;
+  m1-*) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 "${PARTE#m1-}" ;;
+  deriv) COSTES=0 python3 deriv.py "$OUT" ;;
   costes) SOLO_COSTES=1 python3 deriv.py "$OUT" ;;
   binance) HILOS=4 python3 binance.py "$OUT" ;;
   *) echo "parte desconocida: $PARTE"; exit 1 ;;
@@ -37,8 +39,7 @@ TMP="$(mktemp -d)"; cd "$TMP"
 git init -q; git config user.name "umbral-estudio"; git config user.email "umbral-estudio@users.noreply.github.com"
 split -b 45m -d /tmp/datos.enc parte_
 cp /tmp/k.enc /tmp/suma.txt .
-grep -v -i "campos\|costes" /tmp/log.txt | tail -60 > resumen.txt || true
 git add -A; git commit -q -m "datos $PARTE (cifrados, temporales)"
-git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-for i in 1 2 3; do git push -q -f origin "HEAD:refs/heads/datos-$PARTE" && echo "subido datos-$PARTE" && exit 0; sleep 10; done
+RAMA="datos-$(echo "$PARTE" | tr -c 'A-Za-z0-9\n' '-')"
+for i in 1 2 3; do git push -q -f "$REMOTO" "HEAD:refs/heads/$RAMA" && echo "subido $RAMA" && exit 0; sleep 10; done
 exit 1
