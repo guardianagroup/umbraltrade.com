@@ -1,0 +1,24 @@
+# Prueba de un minuto: ¿puede una tarea lanzar otra con su propio permiso? (es lo que hace el motor al acabar cada tramo). Se borra tras la prueba.
+name: Prueba de relevo
+on:
+  workflow_dispatch:
+    inputs:
+      n:
+        description: '0 = lanza el relevo; 1 = es el relevo'
+        default: '0'
+permissions:
+  contents: read
+  actions: write
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Relevo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ inputs.n }}
+        run: |
+          relanza() { for i in 1 2 3; do gh workflow run prueba-relevo.yml --ref main -f n=1 && { echo "siguiente tarea lanzada"; return; }; sleep 5; done; echo "NO se pudo lanzar"; }
+          if [ "$N" = "0" ]; then trap relanza EXIT; echo "primera tarea: al salir lanza la siguiente"; else echo "soy el relevo: funciona"; fi
