@@ -60,23 +60,18 @@ def lee(raw):
 
 
 def mapa(ins, a):
-    """Comprueba el orden de los campos (se espera apertura, cierre, mínimo, máximo) y lo corrige si no cuadra."""
-    if ins in MAPA or len(a) < 200:
+    """El orden de los campos es apertura, cierre, mínimo, máximo (comprobado en todos los instrumentos). Aquí solo se anota, con las velas
+    que no son planas, si de verdad el cuarto campo es el máximo y el tercero el mínimo. (Antes se deducía del primer archivo y, si ese
+    archivo solo tenía velas planas, salía mal: pasó con el oro y la plata.)"""
+    if ins in MAPA:
         return
     cols = np.stack([a['f1'], a['f2'], a['f3'], a['f4']], axis=1).astype(np.int64)
-    mx, mn = cols.max(axis=1), cols.min(axis=1)
-    es_max = [(cols[:, j] == mx).mean() for j in range(4)]
-    es_min = [(cols[:, j] == mn).mean() for j in range(4)]
-    h, l = int(np.argmax(es_max)), int(np.argmin([-x for x in es_min]))
-    resto = [j for j in range(4) if j not in (h, l)]
-    if len(resto) != 2:
-        resto = [0, 1]
-    x, y = cols[:, resto[0]], cols[:, resto[1]]
-    d1 = np.abs(x[1:] - y[:-1]).mean()   # si x es la apertura, sigue al cierre anterior (y)
-    d2 = np.abs(y[1:] - x[:-1]).mean()
-    o, c = (resto[0], resto[1]) if d1 <= d2 else (resto[1], resto[0])
-    MAPA[ins] = (o, c, l, h)
-    log('campos', ins, 'o,c,l,h =', MAPA[ins], 'max', [round(v, 3) for v in es_max], 'min', [round(v, 3) for v in es_min], 'cont', round(float(d1), 2), round(float(d2), 2))
+    k = cols.max(axis=1) > cols.min(axis=1)
+    if k.sum() < 100:
+        return
+    c = cols[k]
+    MAPA[ins] = (0, 1, 2, 3)
+    log('campos', ins, 'máximo en f4: %.4f' % (c[:, 3] == c.max(axis=1)).mean(), 'mínimo en f3: %.4f' % (c[:, 2] == c.min(axis=1)).mean(), 'velas planas: %.3f' % (1 - k.mean()))
 
 
 def campos(ins, a):
