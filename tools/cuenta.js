@@ -1,22 +1,25 @@
 /* Cuenta del algoritmo de Umbral Trade: una cuenta ficticia de 50 $ que opera sola con reglas fijas y deja cada operación a la vista.
    Uso:  node tools/cuenta.js datos/cuenta.json                  (lo ejecuta cada 15 minutos .github/workflows/cuenta.yml)
          node tools/cuenta.js estado.json --velas velas.json --ahora 1763337600   (sin red, para las pruebas)
-   Versión 2 (16-11-2026): opera todos los mercados de Deriv que no son sintéticos (forex, metales, índices y cripto), en velas de 4 h.
+   Versión 3 (16-11-2026): puede operar cualquier mercado de Deriv que no sea sintético (forex, metales, índices y cripto), en velas de 4 h,
+   y opera los que el estudio de 20 años validó: Bitcoin, Ethereum, oro y plata, con la rotura de canal.
    - Dos estrategias. «tortuga»: rotura de canal (cierre por encima del máximo o por debajo del mínimo de las 55 velas anteriores),
      stop a 2 ATR(20), suma una unidad cada 0,5 ATR a favor hasta 4 y sale cuando una vela cierra al otro lado del canal de 20.
      «giro» (las flechas): vela extrema tras un estiramiento (fuera de Bollinger o RSI 30/70, mínimo o máximo de 20 velas) confirmada
      por un cierre más allá de la vela anterior; stop 0,25 ATR más allá del extremo, take profit a 1,5 ATR y, como tarde, sale a las 40 velas.
-   - Cada familia opera la estrategia que mejor le fue en el estudio (cripto y metales, tortuga; forex e índices, giro) con un nivel:
-     «validada» arriesga el 0,5 % del saldo por unidad; «prueba», el 0,1 %; «apagada» y «observa» no operan. Todas las señales de las
-     dos estrategias se miden en todos los mercados como si se operaran; con 30 señales de una familia, si la media es de +0,10 R o más
-     con t ≥ 2 pasa a validada, y si t ≤ −2 se apaga. Queda escrito en el registro.
+   - Niveles por familia y estrategia: «validada» arriesga el 0,5 % del saldo por unidad; «prueba», el 0,1 %; «apagada» y «observa» no operan.
+     El estudio (más de 20 años de velas, comisión de Deriv incluida) validó la rotura en cripto (+0,66 R por operación) y en metales
+     (+0,47 R, en las tres épocas) y rechazó la rotura en forex e índices y el giro en todas las familias (sin comisión se queda en cero).
+     Todas las señales de las dos estrategias se siguen midiendo en todos los mercados como si se operaran: una validada que pierde claro
+     en vivo (30 señales, t ≤ −2) se apaga; una rechazada solo volvería con 300 señales y t ≥ 3. Queda escrito en el registro.
    - Riesgo abierto: 2 % como máximo en lo validado y 1 % en lo que está en prueba; en prueba, 3 operaciones por familia; en forex,
      2 por divisa. No abre más si pierde el 3 % en el día o el 6 % en la semana; se pausa si cae un 30 % desde su máximo.
    - Los stops, los take profit y los añadidos son órdenes que esperan en el bróker: se ejecutan a su precio aunque la tarea pase más
      tarde (se comprueban con velas de 5 minutos). Las entradas y las salidas por señal se hacen al precio del momento en que corre la
      tarea. Con el mercado cerrado no entra ni sale: espera a que abra, y una señal caduca cuando cierra la vela siguiente. Si la tarea
      llega más de una hora después del cierre de la vela con el mercado abierto, no entra (esa entrada ya no sería la de la señal).
-   - Binarias: solo si una estrategia acierta el 58 % o más en una familia con el límite inferior por encima del 52,6 % (100 señales).
+   - Binarias: solo si una estrategia acierta el 58 % o más en una familia con el límite inferior por encima del 55 % (100 señales): Deriv
+     paga cerca del 82 % en forex, metales e índices (medido con su API), así que por debajo del 55 % se pierde. En cripto no las ofrece.
    Cada operación cerrada lleva una huella encadenada (SHA-256): cambiar una operación antigua rompe todas las siguientes. */
 'use strict';
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
@@ -25,18 +28,22 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto');
    su API); sin multiplicador (m: 0: índices, cruces menores, platino y paladio) solo hay CFD en MT5 y se pone un diferencial prudente. */
 const mk = (group, lista, extra) => lista.map(x => Object.assign({ code: x[0], name: x[1], group: group, dec: x[2], rate: x[3], mult: x[4] !== 0 }, extra || {}, x[5] || {}));
 const CFG = {
-  v: 2, saldo0: 50, gran: 14400, m5: 300,
+  v: 3, saldo0: 50, gran: 14400, m5: 300,
   entrada: 55, salida: 20, stopN: 2, paso: 0.5, maxUnidades: 4,
   giro: { stop: 0.25, objetivo: 1.5, velas: 40 },
   riesgo: { validada: 0.005, prueba: 0.001 }, riesgoMax: 0.02, riesgoPrueba: 0.01, porFamilia: 3, porDivisa: 2,
   diaStop: 0.03, semanaStop: 0.06, ddPausa: 0.30, tarde: 3600,
-  nivel: { n: 30, r: 0.10, t: 2 }, binaria: { n: 100, p: 0.58, lo: 0.5263, pago: 0.9 },
+  nivel: { n: 30, r: 0.10, t: 2 }, binaria: { n: 100, p: 0.58, lo: 0.55, pago: 0.82 },   // Deriv paga cerca del 82 % en forex, metales e índices: hace falta acertar el 55 %
   estrategias: ['tortuga', 'giro'],
-  planes: { 'cripto|tortuga': 'validada', 'metal|tortuga': 'prueba', 'forex|giro': 'prueba', 'indice|giro': 'prueba' },
+  planes: { 'cripto|tortuga': 'validada', 'metal|tortuga': 'validada' },   // lo que validó el estudio de 20 años; forex e índices, en observación
+  // lo que el estudio rechazó (R neto medio por operación en 4 h): para volver a operarlo tendría que demostrarlo en vivo con mucha más muestra
+  rechazadas: { 'forex|giro': [15736, -0.086], 'indice|giro': [10767, -0.027], 'metal|giro': [3659, -0.114], 'cripto|giro': [1461, -0.059], 'forex|tortuga': [5784, -0.102], 'indice|tortuga': [3995, -0.065] },
+  validadas: { 'cripto|tortuga': [539, 0.658], 'metal|tortuga': [1466, 0.466] },
+  exigente: { n: 300, t: 3 },
   derivUrl: 'wss://api.derivws.com/trading/v1/options/ws/public',
   mercados: [].concat(
     mk('cripto', [['cryBTCUSD', 'Bitcoin / USD', 3, 0.0007, 1, { kraken: 'XBTUSD' }], ['cryETHUSD', 'Ethereum / USD', 5, 0.001166, 1, { kraken: 'ETHUSD' }]], { bin: false }),   // Deriv no tiene binarias en cripto
-    mk('metal', [['frxXAUUSD', 'Oro / USD', 2, 0.000179], ['frxXAGUSD', 'Plata / USD', 4, 0.000975], ['frxXPTUSD', 'Platino / USD', 2, 0.0025, 0], ['frxXPDUSD', 'Paladio / USD', 2, 0.004, 0]]),
+    mk('metal', [['frxXAUUSD', 'Oro / USD', 2, 0.000179], ['frxXAGUSD', 'Plata / USD', 4, 0.000975], ['frxXPTUSD', 'Platino / USD', 2, 0.0025, 0, { opera: false }], ['frxXPDUSD', 'Paladio / USD', 2, 0.004, 0, { opera: false }]]),   // platino y paladio: sin multiplicador, caros y la rotura no gana en ellos
     mk('forex', [['frxEURUSD', 'EUR/USD', 5, 0.000225], ['frxGBPUSD', 'GBP/USD', 5, 0.000221], ['frxUSDJPY', 'USD/JPY', 3, 0.00035], ['frxAUDUSD', 'AUD/USD', 5, 0.00045], ['frxUSDCAD', 'USD/CAD', 5, 0.000212], ['frxUSDCHF', 'USD/CHF', 5, 0.0003],
       ['frxNZDUSD', 'NZD/USD', 5, 0.0003, 0], ['frxEURJPY', 'EUR/JPY', 3, 0.000275], ['frxGBPJPY', 'GBP/JPY', 3, 0.000244], ['frxEURGBP', 'EUR/GBP', 5, 0.000244], ['frxAUDJPY', 'AUD/JPY', 3, 0.000435], ['frxEURAUD', 'EUR/AUD', 5, 0.000225], ['frxEURCAD', 'EUR/CAD', 5, 0.000243],
       ['frxEURCHF', 'EUR/CHF', 5, 0.000291], ['frxGBPAUD', 'GBP/AUD', 5, 0.000217], ['frxAUDCAD', 'AUD/CAD', 5, 0.0004, 0], ['frxAUDCHF', 'AUD/CHF', 5, 0.0004, 0], ['frxAUDNZD', 'AUD/NZD', 5, 0.0004, 0], ['frxEURNZD', 'EUR/NZD', 5, 0.0004, 0], ['frxGBPCAD', 'GBP/CAD', 5, 0.0004, 0],
@@ -132,15 +139,23 @@ function nuevaCuenta(now) {
     ultimo: {}, medidas: {}, virtuales: [], planes: Object.assign({}, CFG.planes), espera: {}, niveles: {}, resumen: {}, binarias: [], eventos: [], ejecuciones: [], huella: '', pausa: false, dia: null, semana: null, sig: 1 };
 }
 function evento(st, now, tipo, txt, extra) { st.eventos.unshift(Object.assign({ t: now, tipo: tipo, txt: txt }, extra || {})); if (st.eventos.length > 300) st.eventos.length = 300; }
-function migrar(st, now) {   // de la versión 1 (solo BTC y ETH) a la 2
-  if (st.v >= 2) return;
-  st.v = 2; st.planes = Object.assign({}, CFG.planes); st.espera = {}; st.niveles = {}; st.resumen = {}; st.binarias = []; delete st.encendidos;
-  const u = {}; Object.keys(st.ultimo || {}).forEach(k => { const code = k.split('|')[0]; u[code] = Math.max(u[code] || 0, st.ultimo[k]); }); st.ultimo = u;
-  st.abiertas.forEach(p => { p.nivel = 'validada'; });
-  evento(st, now, 'version', 'Empieza a operar todos los mercados', { v: 2 });
+function migrar(st, now) {
+  if (st.v < 2) {   // de la versión 1 (solo BTC y ETH) a la 2 (todos los mercados)
+    st.v = 2; st.planes = { 'cripto|tortuga': 'validada', 'metal|tortuga': 'prueba', 'forex|giro': 'prueba', 'indice|giro': 'prueba' }; st.espera = {}; st.niveles = {}; st.resumen = {}; st.binarias = []; delete st.encendidos;
+    const u = {}; Object.keys(st.ultimo || {}).forEach(k => { const code = k.split('|')[0]; u[code] = Math.max(u[code] || 0, st.ultimo[k]); }); st.ultimo = u;
+    st.abiertas.forEach(p => { p.nivel = 'validada'; });
+    evento(st, now, 'version', 'Empieza a operar todos los mercados', { v: 2 });
+  }
+  if (st.v < 3) {   // versión 3: se aplica el estudio de 20 años (16-11-2026): la rotura en metales pasa a validada y el giro se apaga
+    st.v = 3;
+    evento(st, now, 'version', 'Se aplica el estudio de 20 años', { v: 3 });
+    Object.keys(CFG.validadas).forEach(k => { const a = st.planes[k] || 'observa'; if (a !== 'validada') { st.planes[k] = 'validada'; evento(st, now, 'nivel', k + ': ' + a + ' → validada', { plan: k, de: a, a: 'validada', n: CFG.validadas[k][0], r: CFG.validadas[k][1], estudio: 1 }); } });
+    Object.keys(CFG.rechazadas).forEach(k => { const a = st.planes[k]; if (a === 'validada' || a === 'prueba') { st.planes[k] = 'apagada'; evento(st, now, 'nivel', k + ': ' + a + ' → apagada', { plan: k, de: a, a: 'apagada', n: CFG.rechazadas[k][0], r: CFG.rechazadas[k][1], estudio: 1 }); } });
+    Object.keys(st.espera || {}).forEach(code => { const m = POR[code]; if (!m || !activo(st, m, st.espera[code].est)) delete st.espera[code]; });
+  }
 }
 const plan = (st, m, est) => st.planes[m.group + '|' + est] || 'observa';
-const activo = (st, m, est) => { const e = plan(st, m, est); return e === 'validada' || e === 'prueba'; };
+const activo = (st, m, est) => { const e = plan(st, m, est); return m.opera !== false && (e === 'validada' || e === 'prueba'); };
 const cfdDe = (st, code) => st.abiertas.find(p => p.code === code && p.producto === 'cfd');
 function riesgoDe(p) {   // lo que se perdería si la operación tocara su stop (en $)
   if (p.producto === 'bin') return p.importe;
@@ -313,8 +328,8 @@ function decidirPlanes(st, now) {
   Object.keys(fam).sort().forEach(k => {
     const a = fam[k], mean = a.s / a.n, sd = Math.sqrt(Math.max(1e-12, a.s2 / a.n - mean * mean)), t = a.n > 1 ? mean / sd * Math.sqrt(a.n) : 0, antes = st.planes[k] || 'observa';
     st.resumen[k] = { n: a.n, r: r2(mean, 3), t: r2(t, 2), g: a.g, bin: a.bin };
-    let e = antes;
-    if (a.n >= CFG.nivel.n && mean >= CFG.nivel.r && t >= CFG.nivel.t) e = 'validada';
+    let e = antes; const ex = CFG.rechazadas[k] ? CFG.exigente : CFG.nivel;   // lo que el estudio rechazó necesita mucha más prueba en vivo
+    if (a.n >= ex.n && mean >= CFG.nivel.r && t >= ex.t) e = 'validada';
     else if (a.n >= CFG.nivel.n && t <= -CFG.nivel.t && (antes === 'validada' || antes === 'prueba')) e = 'apagada';
     if (e !== antes) { st.planes[k] = e; evento(st, now, 'nivel', k + ': ' + antes + ' → ' + e, { plan: k, de: antes, a: e, n: a.n, r: r2(mean, 3), tStat: r2(t, 1) }); }
     if (k.split('|')[0] === 'cripto') return;   // Deriv no ofrece binarias en cripto
