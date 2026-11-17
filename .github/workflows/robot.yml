@@ -1,0 +1,32 @@
+# Robot de Umbral, paso 1: modo simulado. Sin cuentas, sin claves y sin dinero: lee precios públicos y anota lo que haría
+# (cifrado, en la rama robot). Es un bucle de unas 5 h 40 min (robot/bucle.sh) que al acabar lanza la tarea siguiente;
+# la tarea programada es solo una red por si la cadena se corta.
+name: Robot
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */4 * * *'
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: robot
+  cancel-in-progress: false
+jobs:
+  robot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: robot
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bucle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.name "umbral-robot"
+          git config --global user.email "umbral-robot@users.noreply.github.com"
+          bash robot/bucle.sh
