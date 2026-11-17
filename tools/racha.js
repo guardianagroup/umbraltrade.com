@@ -231,7 +231,7 @@ function main() {
       }
       const p = d.req_id && pend[d.req_id]; if (p) { delete pend[d.req_id]; p(d); }
     };
-    ws.onclose = () => { conectado = false; if (cerrando) return; st.conexion.reconexiones++; aviso('conexión cortada; se vuelve a conectar'); Object.keys(med).forEach(k => delete med[k]); setTimeout(conecta, 3000); };
+    ws.onclose = () => { conectado = false; if (cerrando) return; st.conexion.reconexiones++; aviso('conexión cortada; se vuelve a conectar'); setTimeout(conecta, 2000); };   // lo abierto se resuelve con los ticks que trae rellena()
     ws.onerror = () => { try { ws.close(); } catch (e) { } };
   }
   conecta();
@@ -247,6 +247,7 @@ function main() {
   }, 1000);
   setInterval(() => { if (cambios) guarda(); }, 10000);
   setInterval(() => { if (conectado) pagos(); }, 600000);
+  setInterval(() => { if (ws && ws.readyState === 1) try { ws.send(JSON.stringify({ ping: 1 })); } catch (e) { } }, 30000);   // Deriv cierra la conexión si el cliente no dice nada en 2 minutos
   setInterval(() => console.log('racha: ' + resumen(st)), 300000);
   setTimeout(() => { aviso('tiempo agotado'); guarda(); process.exit(0); }, Math.max(60, fin - Date.now() / 1000 + 90) * 1000);
   process.on('SIGTERM', () => { cerrando = true; guarda(); process.exit(0); });
