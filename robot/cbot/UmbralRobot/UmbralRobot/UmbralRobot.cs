@@ -57,6 +57,7 @@ namespace cAlgo.Robots
         readonly HashSet<string> tomadas = new();
         Engine js;
         long proxima;
+        bool pendiente;
 
         protected override void OnStart()
         {
@@ -178,6 +179,7 @@ namespace cAlgo.Robots
             foreach (var k in porClave.Keys) { var m = mks.FirstOrDefault(x => k.StartsWith(x.Code + "|")); if (m != null) enGrupo[m.Grupo]++; }
 
             int nuevas = 0, cerradas = 0, ampl = 0;
+            pendiente = false;
             foreach (var o in raiz.GetProperty("ops").EnumerateArray())
             {
                 string key = o.GetProperty("key").GetString(), code = o.GetProperty("m").GetString(), tf = o.GetProperty("tf").GetString();
@@ -192,6 +194,7 @@ namespace cAlgo.Robots
                 {
                     if (done)
                     {
+                        if (!Abierto(m)) { pendiente = true; continue; }   // en pausa: se cierra en cuanto abra
                         foreach (var p in pos) ClosePosition(p);
                         Print($"Cierra {m.Nombre} {tf} ({(up ? "compra" : "venta")}): el motor da la operación por terminada.");
                         cerradas++;
@@ -202,21 +205,29 @@ namespace cAlgo.Robots
                     {
                         string ka = key + "|a" + a.GetProperty("n").GetInt32();
                         if (tomadas.Contains(ka) || pos.Any(p => p.Comment == ka)) continue;
+                        if (now - a.GetProperty("ta").GetInt64() > G[tf] + 900) { tomadas.Add(ka); continue; }   // llegó tarde: no se amplía
+                        if (!Abierto(m)) { pendiente = true; continue; }   // mercado en pausa: se reintenta en un minuto
                         tomadas.Add(ka);
-                        if (now - a.GetProperty("ta").GetInt64() > G[tf] + 900) continue;   // llegó tarde: no se amplía
                         if (Abre(m, up, stop, ka, Account.Balance * RiesgoPct / 100, "amplía")) ampl++;
                     }
                     continue;
                 }
                 if (done || tomadas.Contains(key)) continue;
                 if (now - te > G[tf] + 900) continue;   // detectada tarde (el robot no estaba en marcha): no se toma, como en el simulado
+                if (!Abierto(m)) { Print($"{m.Nombre} {tf}: hay señal, pero el mercado está en pausa; lo reintento en un minuto."); pendiente = true; continue; }
                 tomadas.Add(key);
                 if (enGrupo[m.Grupo] >= CAP[m.Grupo]) { Print($"{m.Nombre} {tf}: hay señal, pero ya está el máximo de operaciones de {m.Grupo}; no abre."); continue; }
                 if (Abre(m, up, stop, key, Account.Balance * RiesgoPct / 100, "abre")) { enGrupo[m.Grupo]++; nuevas++; }
             }
             foreach (var a in raiz.GetProperty("avisos").EnumerateArray()) { var s = a.GetString(); if (s != null && !s.Contains("pocas velas")) Print("Aviso: " + s); }
             Guarda();
+            if (pendiente) proxima = Math.Min(proxima, now + 60);   // algo quedó pendiente por una pausa del mercado: otra pasada en un minuto
             Print($"Pasada {Server.Time:dd/MM HH:mm} UTC · abiertas {Positions.Count(p => p.Label == ETIQ)} · nuevas {nuevas} · ampliaciones {ampl} · cerradas {cerradas} · saldo {Account.Balance:F2} · con lo abierto {Account.Equity:F2}");
+        }
+
+        static bool Abierto(Mk m)
+        {
+            try { return m.S.MarketHours.IsOpened(); } catch { return true; }
         }
 
         bool Abre(Mk m, bool up, double stop, string comentario, double riesgo, string verbo)
