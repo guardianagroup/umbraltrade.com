@@ -1,0 +1,48 @@
+name: cBot
+# Compila el robot de Umbral para cTrader (UmbralRobot.algo) desde la rama robot, comprueba antes que el motor da lo mismo en .NET (Jint)
+# que en Node con velas reales, y deja el .algo en la rama robot (robot/cbot/UmbralRobot.algo).
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: cbot
+  cancel-in-progress: false
+jobs:
+  cbot:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: robot
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+      - name: Motor de JavaScript dentro del cBot
+        run: node robot/cbot/gen_motor.js
+      - name: Velas reales y resultado con Node
+        run: node robot/cbot/prueba/datos.js
+      - name: Mismo cálculo dentro de .NET (Jint)
+        run: dotnet run --project robot/cbot/prueba -c Release -- robot/cbot/prueba/entrada.json robot/cbot/prueba/salida_jint.json
+      - name: Comparar
+        run: node robot/cbot/prueba/compara.js
+      - name: Compilar el cBot
+        run: dotnet build robot/cbot/UmbralRobot -c Release
+      - name: Guardar el .algo en la rama robot
+        run: |
+          f=$(find robot/cbot/UmbralRobot -name "*.algo" -newer robot/cbot/UmbralRobot/UmbralRobot.cs | head -1)
+          [ -z "$f" ] && f=$(find robot/cbot/UmbralRobot -name "*.algo" | head -1)
+          echo "algo: $f"; ls -la "$f"
+          cp "$f" robot/cbot/UmbralRobot.algo
+          git config user.name "umbral-robot"; git config user.email "umbral-robot@users.noreply.github.com"
+          git add robot/cbot/UmbralRobot.algo
+          git commit -m "cBot compilado ($(date -u +%Y-%m-%dT%H:%MZ))" || exit 0
+          for i in 1 2 3; do git pull -q --rebase origin robot && git push -q origin HEAD:robot && exit 0; sleep 5; done; exit 1
