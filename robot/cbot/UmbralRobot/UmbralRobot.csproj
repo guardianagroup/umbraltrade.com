@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>UmbralRobot</AssemblyName>
+    <RootNamespace>cAlgo.Robots</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="cTrader.Automate" Version="*" />
+    <PackageReference Include="Jint" Version="4.*" />
+  </ItemGroup>
+</Project>

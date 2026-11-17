@@ -31,9 +31,9 @@
 
   /* ---------- el cálculo (igual que robot.js), sin pantalla ---------- */
   // datos[código][temporalidad] = velas (la última puede estar abierta). Devuelve todas las operaciones con entrada desde T0.
-  function calcula(datos, NOW, T0) {
+  function calcula(datos, NOW, T0, lista) {
     var ops = [], avisos = [], precio = {};
-    MK.forEach(function (m) {
+    (lista || MK).forEach(function (m) {
       var d = datos[m.code]; if (!d) { avisos.push(m.nombre + ': sin datos'); return; }
       var closed = function (tf) { return (d[tf] || []).filter(function (k) { return k.t + G[tf] <= NOW; }); };
       var px = null; ['M30', 'H1', 'H4', 'D1'].some(function (tf) { var a = d[tf]; if (a && a.length) { px = a[a.length - 1].c; return true; } return false; });
@@ -42,7 +42,7 @@
       zl.sort(function (a, b) { return a.t0 - b.t0; });
       m.tfs.forEach(function (tf) {
         var g = G[tf], htf = HTF[tf], gH = G[htf], cc = closed(tf), cH = closed(htf);
-        if (cc.length < 300 || cH.length < 30) { avisos.push(m.nombre + ' ' + TFN[tf] + ': todavía pocas velas'); return; }
+        if (cc.length < 300 || cH.length < 30) { avisos.push(m.nombre + ' ' + TFN[tf] + ': todavía pocas velas (' + cc.length + ' y ' + cH.length + ')'); return; }
         var zH = A.zigzag(cH, 3), zL = A.zigzag(cc, 3), hd = A.waveDir(cc, g, cH, zH, gH), K = A.cols(cc), sm = A.sma(K.c, 200), at = A.atr(K, 14);
         A.waveEntries(cc, zL, cH, zH, g, gH).forEach(function (x) {
           var te = cc[x.e].t + g; if (te < T0) return;
@@ -51,7 +51,7 @@
           var r0 = Math.abs(E - x.stop); if (!(r0 > 0)) return;
           var tg = A.waveTarget(zl, te, E, x.up, x.tf ? x.tf.ext : null, r0); if (tg) x.beAt = tg.p;   // stop a la entrada en el objetivo (E55)
           var ride = null, adds = [];
-          if (m.adds[tf]) { var sq = A.waveSeq(cc, zL, hd, x, m.com, 0.5, 2); if (sq) { ride = sq.ride; adds = sq.adds; } } else ride = A.waveRide(cc, zL, hd, x, m.com);
+          if (m.adds && m.adds[tf]) { var sq = A.waveSeq(cc, zL, hd, x, m.com, 0.5, 2); if (sq) { ride = sq.ride; adds = sq.adds; } } else ride = A.waveRide(cc, zL, hd, x, m.com);
           if (!ride) return;
           ops.push({
             key: m.code + '|' + tf + '|' + te + '|' + (x.up ? 'c' : 'v'), m: m.code, nombre: m.nombre, g: m.g, tf: tf, up: x.up, te: te, E: E, stop0: x.stop, r0: r0, com: m.com,

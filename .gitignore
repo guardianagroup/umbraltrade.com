@@ -1,0 +1,4 @@
+robot/cbot/prueba/entrada.json
+robot/cbot/prueba/salida_*.json
+robot/cbot/*/bin/
+robot/cbot/*/obj/
