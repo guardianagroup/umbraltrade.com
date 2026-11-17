@@ -1,6 +1,5 @@
-# El motor de Umbral: la cuenta del algoritmo, el Reto (modelo de 15 minutos con los precios y pagos reales de Deriv, dinero ficticio) y el calendario.
+# El motor de Umbral: pone al día el calendario económico de la web cada hora (data/calendar.json, en main).
 # Es un bucle de unas 5 h 40 min (tools/motor.sh) que al acabar lanza la tarea siguiente; la tarea programada es solo una red por si la cadena se corta.
-# Los estados se guardan en la rama «cuenta» (cuenta.json y reto.json), cada cambio con su hora.
 name: Motor
 on:
   workflow_dispatch:
@@ -21,13 +20,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Rama de datos
-        run: |
-          git config --global user.name "umbral-motor"
-          git config --global user.email "umbral-motor@users.noreply.github.com"
-          git fetch --depth=1 origin cuenta
-          git worktree add datos FETCH_HEAD
       - name: Bucle
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash tools/motor.sh
+        run: |
+          git config --global user.name "umbral-motor"
+          git config --global user.email "umbral-motor@users.noreply.github.com"
+          bash tools/motor.sh
