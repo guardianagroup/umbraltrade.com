@@ -267,9 +267,9 @@ async function traer(st, now) {
         // una vez al día, el límite que Deriv declara por contrato (apuesta mínima y pago máximo)
         datos.limites = {};
         for (const x of s.lista) {
-          const L = st && st.limites && st.limites[x.mer]; if (L && now - L.t < 86400) continue;
+          const L = st && st.limites && st.limites[x.mer]; if (L && L.maxPago && now - L.t < 86400) continue;
           const r = await cl.send({ proposal: 1, amount: 100000, basis: 'stake', contract_type: 'CALL', currency: 'USD', underlying_symbol: CFG.codigos[x.mer], duration: 15, duration_unit: 'm' });
-          const m = r.error && String(r.error.message || '').match(/Minimum stake of ([\d.]+) and maximum payout of ([\d.]+)/); if (m) datos.limites[x.mer] = { t: now, min: +m[1], maxPago: +m[2] };
+          const m = r.error && String(r.error.message || '').match(/Minimum stake of ([\d.]*\d) and maximum payout of ([\d.]*\d)/); if (m) datos.limites[x.mer] = { t: now, min: +m[1], maxPago: +m[2] };
         }
       }
     }
