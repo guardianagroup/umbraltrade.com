@@ -1655,7 +1655,8 @@
   ];
   var CAP = { cripto: 3, metal: 2, energia: 2 };
   function need(m) { var s = {}; m.tfs.forEach(function (t) { s[t] = 1; s[HTF[t]] = 1; }); s.D1 = 1; s.H4 = 1; return Object.keys(s); }
-  function nMax(tf) { return tf === 'D1' ? 400 : 1000; }
+  // velas que se bajan: al menos 1000 (400 del diario) y, con el paso de las semanas, las que hagan falta para cubrir desde el 17-11 (hasta 5000)
+  function nMax(tf) { if (tf === 'D1') return 400; var n = Math.ceil((Date.now() / 1000 - START) / G[tf]) + 450; return Math.max(1000, Math.min(5000, n)); }
 
   /* ---------- el cálculo (igual que robot.js), sin pantalla ---------- */
   // datos[código][temporalidad] = velas (la última puede estar abierta). Devuelve todas las operaciones con entrada desde T0.
@@ -1734,10 +1735,15 @@
       clearTimeout(tm); if (!r.ok) throw new Error('respuesta ' + r.status); return r.json();
     }, function (e) { clearTimeout(tm); throw new Error(e && e.name === 'AbortError' ? 'no responde' : 'sin conexión'); });
   }
-  function bn(sym, tf, n) {
-    return getJSON('https://data-api.binance.vision/api/v3/klines?symbol=' + sym + '&interval=' + IV[tf] + '&limit=' + n).then(function (a) {
-      return a.map(function (k) { return { t: Math.floor(k[0] / 1000), o: +k[1], h: +k[2], l: +k[3], c: +k[4] }; });
-    });
+  function bn(sym, tf, n) {   // de 1000 en 1000 hacia atrás si hacen falta más
+    var url = function (lim, end) { return 'https://data-api.binance.vision/api/v3/klines?symbol=' + sym + '&interval=' + IV[tf] + '&limit=' + lim + (end ? '&endTime=' + end : ''); };
+    var map = function (a) { return a.map(function (k) { return { t: Math.floor(k[0] / 1000), o: +k[1], h: +k[2], l: +k[3], c: +k[4] }; }); };
+    var out = [];
+    function paso(end) {
+      var lim = Math.min(1000, n - out.length);
+      return getJSON(url(lim, end)).then(function (a) { var c = map(a); out = c.concat(out); return out.length >= n || c.length < lim || !c.length ? out : paso(c[0].t * 1000 - 1); });
+    }
+    return paso(0);
   }
   function hl(coin, tf, n) {
     var end = Date.now(), start = end - (n + 2) * G[tf] * 1000;
