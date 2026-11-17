@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot de Umbral · cuenta simulada</title>
+<style>
+  :root {
+    --fondo: #e9edf2; --hoja: #ffffff; --tinta: #152031; --suave: #5a6577; --linea: #d6dde6; --rej: #e7ecf2;
+    --azul: #2f55c9; --gana: #0e7a4c; --pierde: #c2362c; --gana-f: #e4f4ec; --pierde-f: #fbe9e7; --sombra: 0 1px 2px rgba(21, 32, 49, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #0d1219; --hoja: #151c26; --tinta: #e6ebf3; --suave: #95a1b4; --linea: #273142; --rej: #1d2533;
+      --azul: #86a2ff; --gana: #38c98a; --pierde: #ff6f62; --gana-f: #14301f; --pierde-f: #3a1916; --sombra: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--fondo); color: var(--tinta); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .n, .v, .sub, td.n, .eje { font-variant-numeric: tabular-nums; }
+  main { max-width: 1120px; margin: 0 auto; padding: 22px 18px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; margin-bottom: 14px; }
+  h1 { font-size: 22px; letter-spacing: -.01em; margin: 0; font-weight: 700; }
+  h1 small { font-weight: 500; color: var(--suave); font-size: 15px; margin-left: 8px; }
+  .estado { font-size: 13px; color: var(--suave); display: inline-flex; align-items: center; gap: 7px; }
+  .estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--suave); }
+  .estado.ok::before { background: var(--gana); box-shadow: 0 0 0 3px var(--gana-f); }
+  .estado.mal { color: var(--pierde); }
+  .estado.mal::before { background: var(--pierde); }
+  .controles { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin: 4px 0 16px; font-size: 13px; color: var(--suave); }
+  .seg { display: inline-flex; border: 1px solid var(--linea); border-radius: 8px; overflow: hidden; background: var(--hoja); margin-left: 6px; }
+  .seg button { font: inherit; color: var(--tinta); background: none; border: 0; padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--linea); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--tinta); color: var(--hoja); }
+  .seg button:focus-visible { outline: 2px solid var(--azul); outline-offset: -2px; }
+  .cifras { display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: 12px; overflow: hidden; box-shadow: var(--sombra); }
+  .cifra { background: var(--hoja); padding: 14px 16px 13px; min-width: 0; }
+  .cifra .k { font-size: 12.5px; color: var(--suave); }
+  .cifra .v { font-size: 22px; font-weight: 650; letter-spacing: -.01em; margin-top: 2px; white-space: nowrap; }
+  .cifra.grande .v { font-size: 30px; }
+  .cifra .sub { font-size: 13px; color: var(--suave); margin-top: 1px; }
+  .gana { color: var(--gana); } .pierde { color: var(--pierde); } .cero { color: var(--suave); }
+  .cuenta3 { display: flex; gap: 14px; font-size: 13px; margin-top: 4px; color: var(--suave); }
+  .cuenta3 b { color: var(--tinta); font-weight: 650; }
+  .bloque { background: var(--hoja); border: 1px solid var(--linea); border-radius: 12px; margin-top: 16px; box-shadow: var(--sombra); }
+  .bloque h2 { font-size: 15px; margin: 0; padding: 13px 16px 0; font-weight: 650; }
+  .bloque .nota { font-size: 12.5px; color: var(--suave); padding: 2px 16px 0; }
+  #grafico { position: relative; padding: 6px 8px 4px; }
+  #grafico svg { display: block; width: 100%; height: 220px; }
+  .rej { stroke: var(--rej); stroke-width: 1; }
+  .base { stroke: var(--suave); stroke-width: 1; stroke-dasharray: 3 4; opacity: .7; }
+  .eje { fill: var(--suave); font-size: 11.5px; }
+  .linea { fill: none; stroke: var(--azul); stroke-width: 2; stroke-linejoin: round; }
+  .pt { stroke: var(--hoja); stroke-width: 2; }
+  .pt.gana { fill: var(--gana); } .pt.pierde { fill: var(--pierde); } .pt.cero { fill: var(--suave); }
+  .ahora { stroke: var(--hoja); stroke-width: 2; }
+  .cruz { stroke: var(--suave); stroke-width: 1; stroke-dasharray: 2 3; }
+  .tip { position: absolute; pointer-events: none; background: var(--hoja); border: 1px solid var(--linea); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); min-width: 150px; }
+  .tip .m { color: var(--suave); }
+  .tabla { overflow-x: auto; padding: 6px 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th { text-align: left; font-weight: 550; color: var(--suave); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--rej); white-space: nowrap; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th.n, td.n { text-align: right; }
+  td .tf { display: block; font-size: 12px; color: var(--suave); }
+  td .amp { display: block; font-size: 11.5px; color: var(--azul); }
+  td .dir { color: var(--tinta); }
+  td.gana b { color: var(--gana); } td.pierde b { color: var(--pierde); }
+  tbody tr:hover td { background: color-mix(in srgb, var(--fondo) 55%, transparent); }
+  td.vacio { white-space: normal; color: var(--suave); padding: 16px; }
+  #sinHueco, #avisos { font-size: 12.5px; color: var(--suave); padding: 0 16px 12px; }
+  #sinHueco:empty, #avisos:empty { display: none; }
+  footer { font-size: 13px; color: var(--suave); margin-top: 22px; max-width: 78ch; }
+  footer p { margin: 0 0 8px; }
+  @media (max-width: 760px) {
+    .cifras { grid-template-columns: 1fr 1fr; }
+    .cifra.grande { grid-column: 1 / -1; }
+    main { padding: 16px 12px 32px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Robot de Umbral <small>cuenta simulada · dinero ficticio</small></h1>
+    <span id="estado" class="estado">Bajando velas de los 14 mercados…</span>
+  </header>
+  <div class="controles">
+    <span>Ver
+      <span class="seg" role="group" aria-label="Periodo">
+        <button type="button" data-desde="vivo">En directo, desde hoy 4:30 p. m.</button><button type="button" data-desde="7d">Repaso 7 días</button><button type="button" data-desde="14d">Repaso 14 días</button>
+      </span>
+    </span>
+    <span>Riesgo por operación
+      <span class="seg" role="group" aria-label="Riesgo por operación">
+        <button type="button" data-riesgo="0.002">0,2 %</button><button type="button" data-riesgo="0.005">0,5 %</button><button type="button" data-riesgo="0.01">1 %</button>
+      </span>
+    </span>
+  </div>
+
+  <section class="cifras" aria-label="Cuenta">
+    <div class="cifra grande"><div class="k">Saldo total (con las abiertas a precio de ahora)</div><div class="v" id="patrimonio">—</div><div class="sub" id="resultadoPct">—</div></div>
+    <div class="cifra"><div class="k">Ganado o perdido</div><div class="v" id="resultado">—</div><div class="sub">sobre 10.000,00 $ ficticios</div></div>
+    <div class="cifra"><div class="k">Saldo de lo ya cerrado</div><div class="v" id="saldo">—</div><div class="cuenta3"><span>cerradas <b id="ncerradas">0</b></span><span class="gana">ganan <b id="nganan">0</b></span><span class="pierde">pierden <b id="npierden">0</b></span></div></div>
+    <div class="cifra"><div class="k">En las abiertas ahora</div><div class="v" id="abierto">—</div><div class="sub"><b id="nabiertas">0</b> abiertas · arriesga <span id="riesgoTxt">20,00 $</span> cada una</div></div>
+  </section>
+
+  <section class="bloque">
+    <h2>Evolución del saldo</h2>
+    <div class="nota" id="desdeTxt"></div>
+    <div id="grafico"></div>
+  </section>
+
+  <section class="bloque">
+    <h2>Operaciones abiertas</h2>
+    <div class="tabla"><table>
+      <thead><tr><th>Mercado</th><th>Dirección</th><th>Abierta</th><th class="n">Entrada</th><th class="n">Precio ahora</th><th class="n">Stop</th><th class="n">Arriesga</th><th class="n">Va ganando</th></tr></thead>
+      <tbody id="tAbiertas"><tr><td colspan="8" class="vacio">Cargando…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section class="bloque">
+    <h2>Operaciones cerradas</h2>
+    <div class="tabla"><table>
+      <thead><tr><th>Mercado</th><th>Dirección</th><th>Abierta</th><th>Cerrada</th><th class="n">Duró</th><th class="n">Entrada → salida</th><th class="n">Arriesgó</th><th class="n">Resultado</th></tr></thead>
+      <tbody id="tCerradas"><tr><td colspan="8" class="vacio">Cargando…</td></tr></tbody>
+    </table></div>
+    <div id="sinHueco"></div>
+    <div id="avisos"></div>
+  </section>
+
+  <footer>
+    <p>Cómo opera: cuando aparece una flecha de tendencia de la web (30 minutos, 1 hora o 4 horas) en Bitcoin, Ethereum, Solana, XRP, BNB, Dogecoin, Cardano, Litecoin, Avalanche, Chainlink, oro, plata, WTI o Brent, abre una operación que arriesga ese porcentaje del saldo. Si el precio avanza, en algunos mercados amplía dos veces y sube el stop de todo; cierra cuando toca el stop o cambia la tendencia. Como máximo, 3 operaciones de cripto, 2 de metales y 2 de petróleo a la vez. Ya descuenta un coste estimado por operación.</p>
+    <p>Todo se calcula en este navegador con precios públicos (Binance, Deriv y Hyperliquid), y se actualiza cada minuto mientras la página esté abierta. Es dinero ficticio: no se conecta a ninguna cuenta ni envía nada.</p>
+  </footer>
+</main>
+<script>/*ALGO*/</script>
+<script>/*PANEL*/</script>
+</body>
+</html>

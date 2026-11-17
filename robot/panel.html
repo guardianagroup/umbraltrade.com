@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot de Umbral · cuenta simulada</title>
+<style>
+  :root {
+    --fondo: #e9edf2; --hoja: #ffffff; --tinta: #152031; --suave: #5a6577; --linea: #d6dde6; --rej: #e7ecf2;
+    --azul: #2f55c9; --gana: #0e7a4c; --pierde: #c2362c; --gana-f: #e4f4ec; --pierde-f: #fbe9e7; --sombra: 0 1px 2px rgba(21, 32, 49, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #0d1219; --hoja: #151c26; --tinta: #e6ebf3; --suave: #95a1b4; --linea: #273142; --rej: #1d2533;
+      --azul: #86a2ff; --gana: #38c98a; --pierde: #ff6f62; --gana-f: #14301f; --pierde-f: #3a1916; --sombra: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--fondo); color: var(--tinta); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .n, .v, .sub, td.n, .eje { font-variant-numeric: tabular-nums; }
+  main { max-width: 1120px; margin: 0 auto; padding: 22px 18px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; margin-bottom: 14px; }
+  h1 { font-size: 22px; letter-spacing: -.01em; margin: 0; font-weight: 700; }
+  h1 small { font-weight: 500; color: var(--suave); font-size: 15px; margin-left: 8px; }
+  .estado { font-size: 13px; color: var(--suave); display: inline-flex; align-items: center; gap: 7px; }
+  .estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--suave); }
+  .estado.ok::before { background: var(--gana); box-shadow: 0 0 0 3px var(--gana-f); }
+  .estado.mal { color: var(--pierde); }
+  .estado.mal::before { background: var(--pierde); }
+  .controles { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin: 4px 0 16px; font-size: 13px; color: var(--suave); }
+  .seg { display: inline-flex; border: 1px solid var(--linea); border-radius: 8px; overflow: hidden; background: var(--hoja); margin-left: 6px; }
+  .seg button { font: inherit; color: var(--tinta); background: none; border: 0; padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--linea); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--tinta); color: var(--hoja); }
+  .seg button:focus-visible { outline: 2px solid var(--azul); outline-offset: -2px; }
+  .cifras { display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: 12px; overflow: hidden; box-shadow: var(--sombra); }
+  .cifra { background: var(--hoja); padding: 14px 16px 13px; min-width: 0; }
+  .cifra .k { font-size: 12.5px; color: var(--suave); }
+  .cifra .v { font-size: 22px; font-weight: 650; letter-spacing: -.01em; margin-top: 2px; white-space: nowrap; }
+  .cifra.grande .v { font-size: 30px; }
+  .cifra .sub { font-size: 13px; color: var(--suave); margin-top: 1px; }
+  .gana { color: var(--gana); } .pierde { color: var(--pierde); } .cero { color: var(--suave); }
+  .cuenta3 { display: flex; gap: 14px; font-size: 13px; margin-top: 4px; color: var(--suave); }
+  .cuenta3 b { color: var(--tinta); font-weight: 650; }
+  .bloque { background: var(--hoja); border: 1px solid var(--linea); border-radius: 12px; margin-top: 16px; box-shadow: var(--sombra); }
+  .bloque h2 { font-size: 15px; margin: 0; padding: 13px 16px 0; font-weight: 650; }
+  .bloque .nota { font-size: 12.5px; color: var(--suave); padding: 2px 16px 0; }
+  #grafico { position: relative; padding: 6px 8px 4px; }
+  #grafico svg { display: block; width: 100%; height: 220px; }
+  .rej { stroke: var(--rej); stroke-width: 1; }
+  .base { stroke: var(--suave); stroke-width: 1; stroke-dasharray: 3 4; opacity: .7; }
+  .eje { fill: var(--suave); font-size: 11.5px; }
+  .linea { fill: none; stroke: var(--azul); stroke-width: 2; stroke-linejoin: round; }
+  .pt { stroke: var(--hoja); stroke-width: 2; }
+  .pt.gana { fill: var(--gana); } .pt.pierde { fill: var(--pierde); } .pt.cero { fill: var(--suave); }
+  .ahora { stroke: var(--hoja); stroke-width: 2; }
+  .cruz { stroke: var(--suave); stroke-width: 1; stroke-dasharray: 2 3; }
+  .tip { position: absolute; pointer-events: none; background: var(--hoja); border: 1px solid var(--linea); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); min-width: 150px; }
+  .tip .m { color: var(--suave); }
+  .tabla { overflow-x: auto; padding: 6px 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th { text-align: left; font-weight: 550; color: var(--suave); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--rej); white-space: nowrap; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th.n, td.n { text-align: right; }
+  td .tf { display: block; font-size: 12px; color: var(--suave); }
+  td .amp { display: block; font-size: 11.5px; color: var(--azul); }
+  td .dir { color: var(--tinta); }
+  td.gana b { color: var(--gana); } td.pierde b { color: var(--pierde); }
+  tbody tr:hover td { background: color-mix(in srgb, var(--fondo) 55%, transparent); }
+  td.vacio { white-space: normal; color: var(--suave); padding: 16px; }
+  #sinHueco, #avisos { font-size: 12.5px; color: var(--suave); padding: 0 16px 12px; }
+  #sinHueco:empty, #avisos:empty { display: none; }
+  footer { font-size: 13px; color: var(--suave); margin-top: 22px; max-width: 78ch; }
+  footer p { margin: 0 0 8px; }
+  @media (max-width: 760px) {
+    .cifras { grid-template-columns: 1fr 1fr; }
+    .cifra.grande { grid-column: 1 / -1; }
+    main { padding: 16px 12px 32px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Robot de Umbral <small>cuenta simulada · dinero ficticio</small></h1>
+    <span id="estado" class="estado">Bajando velas de los 14 mercados…</span>
+  </header>
+  <div class="controles">
+    <span>Ver
+      <span class="seg" role="group" aria-label="Periodo">
+        <button type="button" data-desde="vivo">En directo, desde hoy 4:30 p. m.</button><button type="button" data-desde="7d">Repaso 7 días</button><button type="button" data-desde="14d">Repaso 14 días</button>
+      </span>
+    </span>
+    <span>Riesgo por operación
+      <span class="seg" role="group" aria-label="Riesgo por operación">
+        <button type="button" data-riesgo="0.002">0,2 %</button><button type="button" data-riesgo="0.005">0,5 %</button><button type="button" data-riesgo="0.01">1 %</button>
+      </span>
+    </span>
+  </div>
+
+  <section class="cifras" aria-label="Cuenta">
+    <div class="cifra grande"><div class="k">Saldo total (con las abiertas a precio de ahora)</div><div class="v" id="patrimonio">—</div><div class="sub" id="resultadoPct">—</div></div>
+    <div class="cifra"><div class="k">Ganado o perdido</div><div class="v" id="resultado">—</div><div class="sub">sobre 10.000,00 $ ficticios</div></div>
+    <div class="cifra"><div class="k">Saldo de lo ya cerrado</div><div class="v" id="saldo">—</div><div class="cuenta3"><span>cerradas <b id="ncerradas">0</b></span><span class="gana">ganan <b id="nganan">0</b></span><span class="pierde">pierden <b id="npierden">0</b></span></div></div>
+    <div class="cifra"><div class="k">En las abiertas ahora</div><div class="v" id="abierto">—</div><div class="sub"><b id="nabiertas">0</b> abiertas · arriesga <span id="riesgoTxt">20,00 $</span> cada una</div></div>
+  </section>
+
+  <section class="bloque">
+    <h2>Evolución del saldo</h2>
+    <div class="nota" id="desdeTxt"></div>
+    <div id="grafico"></div>
+  </section>
+
+  <section class="bloque">
+    <h2>Operaciones abiertas</h2>
+    <div class="tabla"><table>
+      <thead><tr><th>Mercado</th><th>Dirección</th><th>Abierta</th><th class="n">Entrada</th><th class="n">Precio ahora</th><th class="n">Stop</th><th class="n">Arriesga</th><th class="n">Va ganando</th></tr></thead>
+      <tbody id="tAbiertas"><tr><td colspan="8" class="vacio">Cargando…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section class="bloque">
+    <h2>Operaciones cerradas</h2>
+    <div class="tabla"><table>
+      <thead><tr><th>Mercado</th><th>Dirección</th><th>Abierta</th><th>Cerrada</th><th class="n">Duró</th><th class="n">Entrada → salida</th><th class="n">Arriesgó</th><th class="n">Resultado</th></tr></thead>
+      <tbody id="tCerradas"><tr><td colspan="8" class="vacio">Cargando…</td></tr></tbody>
+    </table></div>
+    <div id="sinHueco"></div>
+    <div id="avisos"></div>
+  </section>
+
+  <footer>
+    <p>Cómo opera: cuando aparece una flecha de tendencia de la web (30 minutos, 1 hora o 4 horas) en Bitcoin, Ethereum, Solana, XRP, BNB, Dogecoin, Cardano, Litecoin, Avalanche, Chainlink, oro, plata, WTI o Brent, abre una operación que arriesga ese porcentaje del saldo. Si el precio avanza, en algunos mercados amplía dos veces y sube el stop de todo; cierra cuando toca el stop o cambia la tendencia. Como máximo, 3 operaciones de cripto, 2 de metales y 2 de petróleo a la vez. Ya descuenta un coste estimado por operación.</p>
+    <p>Todo se calcula en este navegador con precios públicos (Binance, Deriv y Hyperliquid), y se actualiza cada minuto mientras la página esté abierta. Es dinero ficticio: no se conecta a ninguna cuenta ni envía nada.</p>
+  </footer>
+</main>
+<script>/* Umbral · motor de análisis. Sin DOM ni dependencias: se puede ejecutar en navegador o en servidor. */
+(function (U) {
+  'use strict';
+
+  var GRAN = { M1: 60, M3: 180, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400 };
+  var TF_LABEL = { M1: '1 min', M3: '3 min', M5: '5 min', M15: '15 min', M30: '30 min', H1: '1 hora', H4: '4 horas', D1: '1 día' };
+  var TF_SHORT = { M1: '1m', M3: '3m', M5: '5m', M15: '15m', M30: '30m', H1: '1H', H4: '4H', D1: '1D' };
+  var TF_RANK = { M30: 0, H1: 1, H4: 2, D1: 3 };
+  var CFG = {
+    weight: { M30: 0.6, H1: 1, H4: 2, D1: 3 },        // un giro de 1 día pesa el triple que uno de 1 hora (y los de 30 minutos, poco: refuerzan)
+    pivotK: { M30: 8, H1: 8, H4: 6, D1: 4 },        // velas a cada lado para confirmar un giro
+    minSwing: { M30: 1.5, H1: 1.5, H4: 1.5, D1: 1.0 },// tamaño mínimo del giro, en ATR de su temporalidad
+    decayDays: { M30: 6, H1: 12, H4: 45, D1: 150 }, // los giros antiguos pierden peso
+    breakMargin: 0.3,                       // un cierre 0,3 ATR más allá del nivel cuenta como rotura
+    flipWeight: 0.7,                        // un nivel roto una vez cambia de papel (soporte <-> resistencia) y pesa menos
+    tol: 0.18, maxWidth: 0.35, halfWidth: 0.15, // agrupación de giros en una zona (en ATR de la temporalidad mayor)
+    prior: { d2: 0.382, d3: 0.786, stop: 1.272 }, // profundidad de los umbrales 2 y 3 y del stop (en ATR)
+    minStrength: 50,                        // por debajo no se avisa
+    horizon: 6                              // velas de 1H para medir si un indicador acertó
+  };
+
+  function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+  function mix(a, b, w) { return a + (b - a) * w; }
+  function quantile(sorted, q) {
+    if (!sorted.length) return null;
+    var pos = (sorted.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+  }
+
+  /* ---------- series ---------- */
+  function cols(c) {
+    var n = c.length, k = { n: n, t: new Float64Array(n), o: new Float64Array(n), h: new Float64Array(n), l: new Float64Array(n), c: new Float64Array(n) };
+    for (var i = 0; i < n; i++) { var x = c[i]; k.t[i] = x.t; k.o[i] = x.o; k.h[i] = x.h; k.l[i] = x.l; k.c[i] = x.c; }
+    return k;
+  }
+  function aggregate(c, gran) {
+    var out = [], cur = null;
+    for (var i = 0; i < c.length; i++) {
+      var x = c[i], b = Math.floor(x.t / gran) * gran;
+      if (!cur || cur.t !== b) { cur = { t: b, o: x.o, h: x.h, l: x.l, c: x.c }; out.push(cur); }
+      else { if (x.h > cur.h) cur.h = x.h; if (x.l < cur.l) cur.l = x.l; cur.c = x.c; }
+    }
+    return out;
+  }
+
+  /* ---------- indicadores ---------- */
+  function sma(s, n) {
+    var out = new Float64Array(s.length).fill(NaN), sum = 0;
+    for (var i = 0; i < s.length; i++) { sum += s[i]; if (i >= n) sum -= s[i - n]; if (i >= n - 1) out[i] = sum / n; }
+    return out;
+  }
+  function ema(s, n) {
+    var out = new Float64Array(s.length).fill(NaN), k = 2 / (n + 1), sum = 0, e = NaN;
+    for (var i = 0; i < s.length; i++) {
+      if (i < n) { sum += s[i]; if (i === n - 1) { e = sum / n; out[i] = e; } }
+      else { e = s[i] * k + e * (1 - k); out[i] = e; }
+    }
+    return out;
+  }
+  function rsi(c, n) {
+    var out = new Float64Array(c.length).fill(NaN), g = 0, l = 0;
+    for (var i = 1; i < c.length; i++) {
+      var d = c[i] - c[i - 1], up = d > 0 ? d : 0, dn = d < 0 ? -d : 0;
+      if (i <= n) { g += up; l += dn; if (i === n) { g /= n; l /= n; out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); } }
+      else { g = (g * (n - 1) + up) / n; l = (l * (n - 1) + dn) / n; out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); }
+    }
+    return out;
+  }
+  function atr(k, n) {
+    var out = new Float64Array(k.n).fill(NaN), a = 0;
+    for (var i = 0; i < k.n; i++) {
+      var tr = i === 0 ? k.h[i] - k.l[i] : Math.max(k.h[i] - k.l[i], Math.abs(k.h[i] - k.c[i - 1]), Math.abs(k.l[i] - k.c[i - 1]));
+      if (i < n) { a += tr; if (i === n - 1) { a /= n; out[i] = a; } }
+      else { a = (a * (n - 1) + tr) / n; out[i] = a; }
+    }
+    return out;
+  }
+  function rollMax(s, n) { var o = new Float64Array(s.length).fill(NaN); for (var i = n - 1; i < s.length; i++) { var m = -Infinity; for (var j = i - n + 1; j <= i; j++) if (s[j] > m) m = s[j]; o[i] = m; } return o; }
+  function rollMin(s, n) { var o = new Float64Array(s.length).fill(NaN); for (var i = n - 1; i < s.length; i++) { var m = Infinity; for (var j = i - n + 1; j <= i; j++) if (s[j] < m) m = s[j]; o[i] = m; } return o; }
+  function stochK(k, n, s) {
+    var hh = rollMax(k.h, n), ll = rollMin(k.l, n), raw = new Float64Array(k.n).fill(NaN);
+    for (var i = n - 1; i < k.n; i++) raw[i] = hh[i] === ll[i] ? 50 : 100 * (k.c[i] - ll[i]) / (hh[i] - ll[i]);
+    var out = new Float64Array(k.n).fill(NaN);
+    for (i = n + s - 2; i < k.n; i++) { var sum = 0; for (var j = i - s + 1; j <= i; j++) sum += raw[j]; out[i] = sum / s; }
+    return out;
+  }
+  function macdHist(c) {
+    var a = ema(c, 12), b = ema(c, 26), m = new Float64Array(c.length).fill(NaN), first = -1;
+    for (var i = 0; i < c.length; i++) if (!isNaN(a[i]) && !isNaN(b[i])) { m[i] = a[i] - b[i]; if (first < 0) first = i; }
+    var out = new Float64Array(c.length).fill(NaN);
+    if (first < 0) return out;
+    var sig = ema(m.subarray(first), 9);
+    for (i = 0; i < sig.length; i++) if (!isNaN(sig[i])) out[first + i] = m[first + i] - sig[i];
+    return out;
+  }
+  function bbPctB(c, n, mult) {
+    var m = sma(c, n), out = new Float64Array(c.length).fill(NaN);
+    for (var i = n - 1; i < c.length; i++) {
+      var v = 0; for (var j = i - n + 1; j <= i; j++) v += (c[j] - m[i]) * (c[j] - m[i]);
+      var sd = Math.sqrt(v / n); out[i] = sd === 0 ? 0.5 : (c[i] - (m[i] - mult * sd)) / (2 * mult * sd);
+    }
+    return out;
+  }
+  function cci(k, n) {
+    var tp = new Float64Array(k.n); for (var i = 0; i < k.n; i++) tp[i] = (k.h[i] + k.l[i] + k.c[i]) / 3;
+    var m = sma(tp, n), out = new Float64Array(k.n).fill(NaN);
+    for (i = n - 1; i < k.n; i++) { var md = 0; for (var j = i - n + 1; j <= i; j++) md += Math.abs(tp[j] - m[i]); md /= n; out[i] = md === 0 ? 0 : (tp[i] - m[i]) / (0.015 * md); }
+    return out;
+  }
+  function willr(k, n) {
+    var hh = rollMax(k.h, n), ll = rollMin(k.l, n), out = new Float64Array(k.n).fill(NaN);
+    for (var i = n - 1; i < k.n; i++) out[i] = hh[i] === ll[i] ? -50 : -100 * (hh[i] - k.c[i]) / (hh[i] - ll[i]);
+    return out;
+  }
+  function adx(k, n) {
+    var N = k.n, pdi = new Float64Array(N).fill(NaN), mdi = new Float64Array(N).fill(NaN), ad = new Float64Array(N).fill(NaN);
+    var trS = 0, pS = 0, mS = 0, dxSum = 0, dxCount = 0, a = NaN;
+    for (var i = 1; i < N; i++) {
+      var up = k.h[i] - k.h[i - 1], dn = k.l[i - 1] - k.l[i];
+      var pdm = up > dn && up > 0 ? up : 0, mdm = dn > up && dn > 0 ? dn : 0;
+      var tr = Math.max(k.h[i] - k.l[i], Math.abs(k.h[i] - k.c[i - 1]), Math.abs(k.l[i] - k.c[i - 1]));
+      if (i <= n) { trS += tr; pS += pdm; mS += mdm; if (i < n) continue; }
+      else { trS = trS - trS / n + tr; pS = pS - pS / n + pdm; mS = mS - mS / n + mdm; }
+      var p = trS === 0 ? 0 : 100 * pS / trS, m = trS === 0 ? 0 : 100 * mS / trS;
+      pdi[i] = p; mdi[i] = m;
+      var dx = p + m === 0 ? 0 : 100 * Math.abs(p - m) / (p + m);
+      if (dxCount < n) { dxSum += dx; dxCount++; if (dxCount === n) { a = dxSum / n; ad[i] = a; } }
+      else { a = (a * (n - 1) + dx) / n; ad[i] = a; }
+    }
+    return { adx: ad, pdi: pdi, mdi: mdi };
+  }
+
+  /* ---------- giros (máximos y mínimos confirmados) ---------- */
+  function findPivots(k, K, a, tf, minSw) {
+    var out = [], n = k.n, i, j; if (minSw == null) minSw = CFG.minSwing[tf];
+    for (i = K; i < n - K; i++) {
+      var hi = k.h[i], lo = k.l[i], isH = true, isL = true;
+      for (j = i - K; j <= i + K; j++) {
+        if (j === i) continue;
+        if (k.h[j] > hi || (j < i && k.h[j] === hi)) isH = false;
+        if (k.l[j] < lo || (j < i && k.l[j] === lo)) isL = false;
+        if (!isH && !isL) break;
+      }
+      if (!isH && !isL) continue;
+      var av = a[i] > 0 ? a[i] : a[n - 1];
+      if (!(av > 0)) continue;
+      if (isH) {
+        var lmin = Infinity, rmin = Infinity;
+        for (j = i - K; j < i; j++) if (k.l[j] < lmin) lmin = k.l[j];
+        for (j = i + 1; j <= i + K; j++) if (k.l[j] < rmin) rmin = k.l[j];
+        var sh = Math.min(hi - lmin, hi - rmin) / av;
+        if (sh >= minSw) out.push({ i: i, t: k.t[i], type: 'H', price: hi, body: Math.max(k.o[i], k.c[i]), swing: sh, tf: tf, atr: av });
+      }
+      if (isL) {
+        var lmax = -Infinity, rmax = -Infinity;
+        for (j = i - K; j < i; j++) if (k.h[j] > lmax) lmax = k.h[j];
+        for (j = i + 1; j <= i + K; j++) if (k.h[j] > rmax) rmax = k.h[j];
+        var sl = Math.min(lmax - lo, rmax - lo) / av;
+        if (sl >= minSw) out.push({ i: i, t: k.t[i], type: 'L', price: lo, body: Math.min(k.o[i], k.c[i]), swing: sl, tf: tf, atr: av });
+      }
+    }
+    return out;
+  }
+
+  /* estructura al estilo Smart Money: un cierre por encima del último máximo relevante es una ruptura alcista;
+     por debajo del último mínimo, bajista. flip = la ruptura cambió el sentido que traía el precio. */
+  function structure(k, pivots, K, all) {
+    var dir = 0, last = null, hi = null, lo = null, hiT = 0, loT = 0, pi = 0;
+    for (var j = 0; j < k.n - 1; j++) {
+      while (pi < pivots.length && pivots[pi].i + K <= j) { if (pivots[pi].type === 'H') { hi = pivots[pi].price; hiT = pivots[pi].t; } else { lo = pivots[pi].price; loT = pivots[pi].t; } pi++; }
+      if (hi != null && k.c[j] > hi) { last = { t: k.t[j], dir: 1, flip: dir === -1, level: hi, from: hiT }; dir = 1; hi = null; if (all) all.push(last); }       // flip: cambio de carácter (CHoCH); si no, continuación (BOS)
+      else if (lo != null && k.c[j] < lo) { last = { t: k.t[j], dir: -1, flip: dir === 1, level: lo, from: loT }; dir = -1; lo = null; if (all) all.push(last); }
+    }
+    return { dir: dir, last: last };
+  }
+
+  /* soportes y resistencias de la propia temporalidad del gráfico (1 minuto, 5 minutos...), con sus rupturas de estructura.
+     Misma lógica que las zonas del radar: giros vivos agrupados por precio. Sirve para dibujarlos en cualquier marco. */
+  function localLevels(c) {
+    var n = c.length, none = { zones: [], breaks: [] };
+    if (n < 40) return none;
+    var k = cols(n > 600 ? c.slice(n - 600) : c), a = atr(k, 14), A0 = a[k.n - 1], K = 5;
+    if (!(A0 > 0)) return none;
+    var pv = findPivots(k, K, a, 'X', 1.0), levels = [], groups = [], cur = null, all = [];
+    pv.forEach(function (p) {
+      var q = qualify(k, p); if (q.crosses >= 2) return;
+      var w = Math.exp(-(k.n - p.i) / 350) * clamp(Math.log(1 + q.reaction) / Math.log(4), 0.5, 1.8) * (q.crosses ? CFG.flipWeight : 1) * (1 + 0.2 * Math.min(q.tests, 2)), pad = 0.2 * A0;
+      levels.push({ p: p.price, t: p.t, w: w, tests: q.tests, crosses: q.crosses, lo: p.type === 'L' ? p.price : Math.max(p.body, p.price - pad), hi: p.type === 'L' ? Math.min(p.body, p.price + pad) : p.price });
+    });
+    levels.sort(function (x, y) { return x.p - y.p; });
+    levels.forEach(function (l) { if (cur && l.p - cur.pMax <= 0.25 * A0 && l.p - cur.pMin <= 0.6 * A0) { cur.m.push(l); cur.pMax = l.p; } else { cur = { m: [l], pMin: l.p, pMax: l.p }; groups.push(cur); } });
+    var zones = groups.map(function (g) {
+      var S = 0, lo = Infinity, hi = -Infinity, t0 = Infinity, tests = 0, flipped = false;
+      g.m.sort(function (x, y) { return y.w - x.w; });
+      g.m.forEach(function (l, i) { S += i === 0 ? l.w : (i < 4 ? 0.6 * l.w : 0); if (l.lo < lo) lo = l.lo; if (l.hi > hi) hi = l.hi; if (l.t < t0) t0 = l.t; if (l.tests > tests) tests = l.tests; if (i === 0) flipped = l.crosses === 1; });
+      if (hi - lo < 0.06 * A0) { var md = (hi + lo) / 2; lo = md - 0.03 * A0; hi = md + 0.03 * A0; }
+      return { lo: lo, hi: hi, mid: (lo + hi) / 2, strength: Math.round(100 * (1 - Math.exp(-S / 1.6))), n: g.m.length, t0: t0, tests: tests, flipped: flipped, local: true };
+    }).filter(function (z) { return z.strength >= 35; }).sort(function (x, y) { return y.strength - x.strength; }).slice(0, 14);
+    structure(k, pv, K, all);
+    return { zones: zones, breaks: all.slice(-10) };
+  }
+
+  /* lectura en vivo de los indicadores de una serie de velas: valor, posición de 0 a 100 y una frase clara */
+  function readout(c) {
+    var n = c.length; if (n < 60) return null;
+    var k = cols(n > 400 ? c.slice(n - 400) : c), i = k.n - 1, cl = k.c, px = cl[i], A0 = atr(k, 14)[i];
+    var r = rsi(cl, 14)[i], sk = stochK(k, 14, 3)[i], mh = macdHist(cl), e20 = ema(cl, 20)[i], e50 = ema(cl, 50)[i], e200 = ema(cl, 200)[i], bb = bbPctB(cl, 20, 2)[i] * 100, dm = adx(k, 14), ax = dm.adx[i];
+    var out = [], h0 = mh[i], h1 = mh[i - 1], up = h0 > 0, grow = Math.abs(h0) > Math.abs(h1);
+    out.push({ key: 'rsi', name: 'RSI 14', val: r, dec: 1, pct: r, lo: 30, hi: 70, signal: r < 30 ? 1 : (r > 70 ? -1 : 0), text: r < 30 ? 'Sobreventa: el precio ha caído mucho en poco tiempo' : r > 70 ? 'Sobrecompra: el precio ha subido mucho en poco tiempo' : r < 45 ? 'Neutral, con presión vendedora' : r > 55 ? 'Neutral, con presión compradora' : 'Neutral' });
+    out.push({ key: 'stoch', name: 'Estocástico 14', val: sk, dec: 0, pct: sk, lo: 20, hi: 80, signal: sk < 20 ? 1 : (sk > 80 ? -1 : 0), text: sk < 20 ? 'Sobreventa: cerca del mínimo de las últimas 14 velas' : sk > 80 ? 'Sobrecompra: cerca del máximo de las últimas 14 velas' : 'En la parte media de su rango' });
+    out.push({ key: 'macd', name: 'MACD', val: A0 > 0 ? 100 * h0 / A0 : 0, dec: 0, unit: '%', pct: 50 + 50 * clamp(A0 > 0 ? h0 / (0.4 * A0) : 0, -1, 1), mid: true, signal: up && grow ? 1 : (!up && grow ? -1 : 0), text: (up ? 'Impulso alcista' : 'Impulso bajista') + (grow ? ', ganando fuerza' : ', perdiendo fuerza') });
+    if (!isNaN(e50)) { var d1 = 100 * (e20 - e50) / e50; out.push({ key: 'ema', name: 'Medias 20 y 50', val: d1, dec: 2, unit: '%', sign: true, pct: 50 + 50 * clamp((e20 - e50) / (1.5 * A0), -1, 1), mid: true, signal: e20 > e50 ? 1 : -1, text: e20 > e50 ? 'La media de 20 está por encima de la de 50: tendencia alcista' : 'La media de 20 está por debajo de la de 50: tendencia bajista' }); }
+    if (!isNaN(e200)) { var d2 = 100 * (px - e200) / e200; out.push({ key: 'ema200', name: 'Media 200', val: d2, dec: 2, unit: '%', sign: true, pct: 50 + 50 * clamp((px - e200) / (4 * A0), -1, 1), mid: true, signal: px > e200 ? 1 : -1, text: px > e200 ? 'El precio está por encima de su media de 200 velas' : 'El precio está por debajo de su media de 200 velas' }); }
+    out.push({ key: 'bb', name: 'Bandas de Bollinger', val: clamp(bb, 0, 100), dec: 0, unit: '%', pct: clamp(bb, 0, 100), lo: 5, hi: 95, signal: bb < 5 ? 1 : (bb > 95 ? -1 : 0), text: bb < 5 ? 'En la banda inferior: precio estirado a la baja' : bb > 95 ? 'En la banda superior: precio estirado al alza' : bb < 40 ? 'En la mitad baja de las bandas' : bb > 60 ? 'En la mitad alta de las bandas' : 'En el centro de las bandas' });
+    if (!isNaN(ax)) out.push({ key: 'adx', name: 'ADX 14', val: ax, dec: 0, pct: clamp(ax * 2, 0, 100), lo: 0, hi: 100, mark: 40, signal: ax > 20 ? (dm.pdi[i] > dm.mdi[i] ? 1 : -1) : 0, text: ax < 20 ? 'Sin tendencia clara: mercado lateral' : (ax > 40 ? 'Tendencia fuerte ' : 'Tendencia ') + (dm.pdi[i] > dm.mdi[i] ? 'alcista' : 'bajista') });
+    var bull = 0, bear = 0; out.forEach(function (x) { if (x.signal > 0) bull++; else if (x.signal < 0) bear++; });
+    return { list: out, bull: bull, bear: bear, score: out.length ? (bull - bear) / out.length : 0 };
+  }
+
+  /* un mismo giro se ve en varias temporalidades: se queda solo en la mayor, para no contarlo tres veces */
+  function dedupe(lower, higher, gran, eps) {
+    var idx = {};
+    higher.forEach(function (p) { idx[p.type + Math.floor(p.t / gran)] = p.price; });
+    return lower.filter(function (p) { var hp = idx[p.type + Math.floor(p.t / gran)]; return !(hp != null && Math.abs(hp - p.price) <= eps); });
+  }
+
+  /* ---------- perfil de barridos: qué pasó la primera vez que el precio volvió a cada giro ----------
+     Se mide sobre velas de 1 hora y en unidades R (ver units): rebote = se alejó 1 R a favor antes de pasar 1 R más allá
+     del nivel (por azar sería un 50 %). Barrido = cuánto traspasó el nivel antes de girar: de ahí salen los umbrales 2 y 3. */
+  function sweepProfile(k1, pivots, tf, R, cases) {
+    var eps = [], n = k1.n, g = GRAN[tf], K = CFG.pivotK[tf];
+    for (var p = 0; p < pivots.length; p++) {
+      var pv = pivots[p], L = pv.price, up = pv.type === 'L', ready = pv.t + (K + 1) * g;
+      if (pv.t < k1.t[0]) continue;
+      var lo = 0, hi = n; while (lo < hi) { var mid = (lo + hi) >> 1; if (k1.t[mid] < pv.t + g) lo = mid + 1; else hi = mid; }
+      var away = false, touch = -1, maxPen = 0;
+      for (var j = lo; j < n; j++) {
+        var favor = up ? k1.h[j] - L : L - k1.l[j], pen = up ? L - k1.l[j] : k1.h[j] - L;
+        if (touch < 0) {
+          if (!away) { if (favor >= R) away = true; continue; }
+          if (k1.t[j] < ready || pen < -0.1 * R) continue;
+          touch = j; maxPen = Math.max(0, pen);
+          if (pen >= R) { eps.push({ depth: 1, out: 'break' }); if (cases) cases.push({ i: touch, up: up, tf: tf, y: 0, t: k1.t[touch] }); break; }
+          continue;
+        }
+        if (pen > maxPen) maxPen = pen;
+        if (maxPen >= R) { eps.push({ depth: 1, out: 'break' }); if (cases) cases.push({ i: touch, up: up, tf: tf, y: 0, t: k1.t[touch] }); break; }
+        if (favor >= R) { eps.push({ depth: maxPen / R, out: 'bounce' }); if (cases) cases.push({ i: touch, up: up, tf: tf, y: 1, t: k1.t[touch] }); break; }
+        if (j - touch > 60) break;
+      }
+    }
+    var b = [], sw = [], br = 0;
+    eps.forEach(function (e) { if (e.out === 'bounce') { b.push(e.depth); if (e.depth > 0.05) sw.push(e.depth); } else br++; });
+    sw.sort(function (x, y) { return x - y; });
+    var nn = b.length + br;
+    return { n: nn, bounces: b.length, breaks: br, rate: nn ? b.length / nn : null, clean: b.length - sw.length, swept: sw.length, q50: quantile(sw, 0.5), q85: quantile(sw, 0.85) };
+  }
+  /* hasta dónde entra el precio antes de girar cuando vuelve a un giro: se mide hasta 3,5 R (más lejos cuenta como rotura).
+     Solo cuenta si luego gira de verdad (se aleja 1 R a favor). Sirve para la anchura de las tres zonas. */
+  function sweepDepths(k1, pivots, tf, R) {
+    var g = GRAN[tf], K = CFG.pivotK[tf], n = k1.n, out = [], brk = 0;
+    for (var p = 0; p < pivots.length; p++) {
+      var pv = pivots[p], L = pv.price, up = pv.type === 'L', ready = pv.t + (K + 1) * g;
+      if (pv.t < k1.t[0]) continue;
+      var lo = 0, hi = n; while (lo < hi) { var mid = (lo + hi) >> 1; if (k1.t[mid] < pv.t + g) lo = mid + 1; else hi = mid; }
+      var away = false, touch = -1, maxPen = 0;
+      for (var j = lo; j < n; j++) {
+        var favor = up ? k1.h[j] - L : L - k1.l[j], pen = up ? L - k1.l[j] : k1.h[j] - L;
+        if (touch < 0) { if (!away) { if (favor >= R) away = true; continue; } if (k1.t[j] < ready || pen < -0.1 * R) continue; touch = j; maxPen = Math.max(0, pen); continue; }
+        if (pen > maxPen) maxPen = pen;
+        if (maxPen >= 3.5 * R) { brk++; break; }
+        if (favor >= R) { out.push(maxPen / R); break; }
+        if (j - touch > 80) break;
+      }
+    }
+    out.sort(function (x, y) { return x - y; });
+    return { n: out.length, breaks: brk, q50: quantile(out, 0.5), q75: quantile(out, 0.75), q90: quantile(out, 0.9) };
+  }
+  /* anchura de las zonas: la 1 llega hasta donde gira la mitad de las veces, la 2 hasta las tres cuartas partes y la 3 hasta el stop,
+     que deja dentro 9 de cada 10 giros. Con pocos casos en un activo pesa más lo medido en los de su tipo
+     (estudio del 16 de noviembre de 2026 con los 85 mercados: en una cuarta parte de los giros el precio pasaba el stop anterior). */
+  var DEPTH0 = { sint: [0.47, 1.24, 2.27], metal: [0.63, 1.26, 2.6], forex: [0.62, 1.33, 2.24], indice: [0.66, 1.65, 2.67], cripto: [0.88, 1.73, 2.63], all: [0.6, 1.35, 2.4] };
+  function ladderDepths(dp, group) {
+    var P = DEPTH0[group] || DEPTH0.all, m = dp && dp.n ? dp.n : 0, w = m / (m + 15);
+    var d2 = clamp(mix(P[0], m ? dp.q50 : P[0], w), 0.2, 1.2);
+    var d3 = clamp(mix(P[1], m ? dp.q75 : P[1], w), d2 + 0.25, 2.4);
+    var stop = clamp(mix(P[2], m ? dp.q90 : P[2], w) + 0.15, Math.max(1.272, d3 + 0.3), 3.2);
+    return { d2: d2, d3: d3, stop: stop, samples: m };
+  }
+
+  /* ---------- qué ha hecho el precio con cada giro desde que se formó ----------
+     reaction: cuánto se alejó el precio antes de volver (en ATR). tests: veces que volvió y aguantó.
+     crosses: veces que una vela cerró al otro lado. Con dos cruces el nivel está muerto. */
+  function qualify(k, pv) {
+    var L = pv.price, a = pv.atr, n = k.n, m = CFG.breakMargin * a, cur = pv.type === 'L' ? 1 : -1;
+    var crosses = 0, tests = 0, away = false, maxFav = 0, back = false;
+    for (var j = pv.i + 1; j < n; j++) {
+      var fav = cur > 0 ? k.h[j] - L : L - k.l[j];
+      var near = cur > 0 ? k.l[j] <= L + 0.1 * a : k.h[j] >= L - 0.1 * a;
+      if (!back && fav > maxFav) maxFav = fav;
+      if (near) { if (away) { tests++; away = false; back = true; } }
+      else if (fav >= a) away = true;
+      if (j < n - 1) { // la vela en curso todavía no confirma una rotura
+        var pos = k.c[j] > L + m ? 1 : (k.c[j] < L - m ? -1 : 0);
+        if (pos === -cur) { crosses++; cur = -cur; away = false; back = true; if (crosses >= 2) break; }
+      }
+    }
+    return { reaction: Math.max(pv.swing, maxFav / a), tests: tests, crosses: crosses };
+  }
+
+  /* ---------- zonas: giros vivos de 30m, 1H, 4H y 1D agrupados por precio ---------- */
+  function buildZones(pivots, K, A, now) {
+    var levels = [];
+    pivots.forEach(function (p) {
+      var q = qualify(K[p.tf], p);
+      if (q.crosses >= 2) return;
+      var age = Math.max(0, (now - p.t) / 86400);
+      var w = CFG.weight[p.tf] * Math.exp(-age / CFG.decayDays[p.tf]) * clamp(Math.log(1 + q.reaction) / Math.log(4), 0.5, 1.8) * (q.crosses ? CFG.flipWeight : 1) * (1 + 0.2 * Math.min(q.tests, 2));
+      if (w < 0.1) return;
+      var pad = 0.12 * A[p.tf];
+      levels.push({
+        p: p.price, tf: p.tf, type: p.type, t: p.t, w: w, tests: q.tests, crosses: q.crosses, reaction: q.reaction,
+        lo: p.type === 'L' ? p.price : Math.max(p.body, p.price - pad),
+        hi: p.type === 'L' ? Math.min(p.body, p.price + pad) : p.price
+      });
+    });
+    levels.sort(function (a, b) { return a.p - b.p; });
+    var groups = [], cur = null;
+    levels.forEach(function (l) {
+      if (cur) {
+        var top = TF_RANK[l.tf] > TF_RANK[cur.top] ? l.tf : cur.top;
+        if (l.p - cur.pMax <= CFG.tol * A[top] && l.p - cur.pMin <= CFG.maxWidth * A[top]) { cur.m.push(l); cur.pMax = l.p; cur.top = top; return; }
+      }
+      cur = { m: [l], pMin: l.p, pMax: l.p, top: l.tf }; groups.push(cur);
+    });
+    return groups.map(function (g) {
+      g.m.sort(function (x, y) { return y.w - x.w; });
+      var anchor = g.m[0], S = anchor.w, sumW = 0, ctr = 0, lo = Infinity, hi = -Infinity, tests = 0, lastT = 0, firstT = Infinity, seen = {}, tfs = [];
+      g.m.forEach(function (l, i) {
+        if (i > 0 && i < 4) S += 0.6 * l.w;
+        sumW += l.w; ctr += l.p * l.w; if (l.tests > tests) tests = l.tests;
+        if (l.lo < lo) lo = l.lo; if (l.hi > hi) hi = l.hi;
+        if (l.t > lastT) lastT = l.t; if (l.t < firstT) firstT = l.t;
+        if (!seen[l.tf] && (l === anchor || l.w >= 0.4 * CFG.weight[l.tf])) { seen[l.tf] = 1; tfs.push(l.tf); }
+      });
+      ctr /= sumW;
+      tfs.sort(function (x, y) { return TF_RANK[y] - TF_RANK[x]; });
+      var Atop = A[tfs[0]], half = CFG.halfWidth * Atop, minHalf = 0.03 * Atop;
+      if (hi - lo > 2 * half) { lo = Math.max(lo, ctr - half); hi = Math.min(hi, ctr + half); }
+      if (hi - lo < 2 * minHalf) { var mid0 = (hi + lo) / 2; lo = mid0 - minHalf; hi = mid0 + minHalf; }
+      S *= 1 + 0.2 * (tfs.length - 1);
+      return {
+        lo: lo, hi: hi, mid: (lo + hi) / 2, strength: Math.round(100 * (1 - Math.exp(-S / 4.5))), tfs: tfs, dom: tfs[0], n: g.m.length,
+        tests: tests, flipped: anchor.crosses === 1, fresh: tests === 0 && anchor.crosses === 0, reaction: anchor.reaction, origin: anchor.type, lastT: lastT, firstT: firstT
+      };
+    }).filter(function (z) { return z.strength >= 10; });
+  }
+
+  /* ---------- resumen de indicadores, con el acierto reciente de cada uno en este activo ---------- */
+  var IND = [
+    { key: 'rsi', name: 'RSI 14', kind: 'osc' }, { key: 'stoch', name: 'Estocástico 14', kind: 'osc' },
+    { key: 'cci', name: 'CCI 20', kind: 'osc' }, { key: 'willr', name: 'Williams %R', kind: 'osc' },
+    { key: 'bb', name: 'Bandas de Bollinger', kind: 'osc' }, { key: 'macd', name: 'MACD', kind: 'mom' },
+    { key: 'ema', name: 'Medias 20/50', kind: 'trend' }, { key: 'ema200', name: 'Media 200', kind: 'trend' },
+    { key: 'adx', name: 'ADX y DI', kind: 'trend' }, { key: 'candle', name: 'Vela de rechazo', kind: 'price' }
+  ];
+  function indicatorPanel(k1, k4, kd, st) {
+    var c = k1.c, n = k1.n;
+    var v = { rsi: rsi(c, 14), stoch: stochK(k1, 14, 3), cci: cci(k1, 20), willr: willr(k1, 14), bb: bbPctB(c, 20, 2), macd: macdHist(c) };
+    var e20 = ema(c, 20), e50 = ema(c, 50), e200 = ema(c, 200), dm = adx(k1, 14), a1 = atr(k1, 14);
+    function sig(key, i) {
+      var x;
+      switch (key) {
+        case 'rsi': x = v.rsi[i]; return x < 30 ? 1 : (x > 70 ? -1 : 0);
+        case 'stoch': x = v.stoch[i]; return x < 20 ? 1 : (x > 80 ? -1 : 0);
+        case 'cci': x = v.cci[i]; return x < -100 ? 1 : (x > 100 ? -1 : 0);
+        case 'willr': x = v.willr[i]; return x < -80 ? 1 : (x > -20 ? -1 : 0);
+        case 'bb': x = v.bb[i]; return x < 0.02 ? 1 : (x > 0.98 ? -1 : 0);
+        case 'macd': if (i < 1 || isNaN(v.macd[i - 1])) return 0; x = v.macd[i]; return x > 0 && x > v.macd[i - 1] ? 1 : (x < 0 && x < v.macd[i - 1] ? -1 : 0);
+        case 'ema': return isNaN(e50[i]) ? 0 : (e20[i] > e50[i] ? 1 : -1);
+        case 'ema200': return isNaN(e200[i]) ? 0 : (c[i] > e200[i] ? 1 : -1);
+        case 'adx': return !(dm.adx[i] > 20) ? 0 : (dm.pdi[i] > dm.mdi[i] ? 1 : -1);
+        case 'candle':
+          var r = k1.h[i] - k1.l[i]; if (!(r > 0)) return 0;
+          var top = Math.max(k1.o[i], k1.c[i]), bot = Math.min(k1.o[i], k1.c[i]);
+          if ((bot - k1.l[i]) / r >= 0.6 && (k1.h[i] - top) / r <= 0.2) return 1;
+          if ((k1.h[i] - top) / r >= 0.6 && (bot - k1.l[i]) / r <= 0.2) return -1;
+          return 0;
+      }
+      return 0;
+    }
+    function val(key, i) {
+      switch (key) {
+        case 'rsi': return v.rsi[i]; case 'stoch': return v.stoch[i]; case 'cci': return v.cci[i]; case 'willr': return v.willr[i];
+        case 'bb': return v.bb[i] * 100; case 'macd': return v.macd[i]; case 'adx': return dm.adx[i];
+      }
+      return null;
+    }
+    function feat(i, sgn, tf) { // lo que se sabía en una vela, visto desde el lado del soporte (sgn 1) o de la resistencia (sgn -1)
+      if (i < 210 || i >= n || !(a1[i] > 0)) return null;
+      var sum = 0, m = 0; IND.forEach(function (d) { if (d.key !== 'candle') { sum += sig(d.key, i); m++; } });
+      return [1, sgn * sum / m, sgn * sig('ema200', i), sgn * (50 - v.rsi[i]) / 50, Math.min(6, Math.abs(c[i] - c[i - 6]) / a1[i]) / 6, tf === 'D1' ? 1 : (tf === 'H4' ? 0.5 : 0), sgn * sig('ema', i) * Math.min(1, (dm.adx[i] || 0) / 50)];
+    }
+    var H = CFG.horizon, last = n - 1, lastClosed = Math.max(0, n - 2), list = [];
+    IND.forEach(function (d) {
+      var hits = 0, cnt = 0;
+      for (var i = 200; i < n - H; i++) { var s = sig(d.key, i); if (!s) continue; cnt++; if ((c[i + H] - c[i]) * s > 0) hits++; }
+      var rate = (hits + 20) / (cnt + 40);
+      var idx = d.key === 'candle' ? lastClosed : last;
+      list.push({ key: d.key, name: d.name, kind: d.kind, tf: 'H1', signal: sig(d.key, idx), value: val(d.key, idx), rate: rate, n: cnt, weight: clamp(0.5 + (rate - 0.5) * 5, 0.15, 1.5) });
+    });
+    function trendOf(k) {
+      if (!k || k.n < 55) return 0;
+      var a = ema(k.c, 20), b = ema(k.c, 50), i = k.n - 1;
+      return a[i] > b[i] && k.c[i] > b[i] ? 1 : (a[i] < b[i] && k.c[i] < b[i] ? -1 : 0);
+    }
+    st = st || {};
+    var t1 = (st.H1 && st.H1.dir) || trendOf(k1), t4 = (st.H4 && st.H4.dir) || trendOf(k4), td = (st.D1 && st.D1.dir) || trendOf(kd);
+    list.push({ key: 's1', name: 'Estructura 1H', kind: 'struct', tf: 'H1', signal: t1, value: null, rate: null, n: 0, weight: 1 });
+    list.push({ key: 'h4', name: 'Estructura 4H', kind: 'struct', tf: 'H4', signal: t4, value: null, rate: null, n: 0, weight: 1.3 });
+    list.push({ key: 'd1', name: 'Estructura 1D', kind: 'struct', tf: 'D1', signal: td, value: null, rate: null, n: 0, weight: 1.3 });
+    var sw = 0, ss = 0; list.forEach(function (x) { sw += x.weight; ss += x.weight * x.signal; });
+    var best = list.filter(function (x) { return x.n >= 20; }).sort(function (a, b) { return b.rate - a.rate; }).slice(0, 3);
+    return { list: list, consensus: sw ? ss / sw : 0, best: best, trend: { H1: t1, H4: t4, D1: td }, rsi: v.rsi[last], adx: dm.adx[last], feat: feat };
+  }
+
+  /* ---------- aprendizaje: el algoritmo se corrige con lo que pasó de verdad ----------
+     Cada regreso del precio a un soporte o una resistencia es un caso: lo que se sabía justo antes (indicadores, tendencia,
+     velocidad de llegada, temporalidad) y lo que ocurrió después (rebotó o lo rompió). Con esos casos se ajusta en línea una
+     regresión logística; su estimación sube o baja la puntuación de cada aviso. Los pesos se guardan y siguen aprendiendo. */
+  var LEARN = ['', 'los indicadores a favor', 'el precio del lado bueno de la media de 200', 'el RSI estirado a favor', 'una llegada rápida', 'la temporalidad alta', 'una tendencia fuerte a favor'];
+  function learnNew() { return { v: 3, w: [0, 0, 0, 0, 0, 0, 0], n: 0, hits: 0, se: 0, se0: 0, last: {} }; }
+  function learnP(model, x) { var z = 0; for (var i = 0; i < x.length; i++) z += model.w[i] * x[i]; return 1 / (1 + Math.exp(-z)); }
+  function learnTrain(model, cases, key) { // aprende solo de los casos que aún no había visto; devuelve cuántos
+    var last = model.last[key] || 0, maxT = last, added = 0;
+    (cases || []).forEach(function (s) {
+      if (s.t <= last || !s.x) return;
+      var p = learnP(model, s.x), base = model.n > 20 ? model.hits / model.n : 0.5, e = s.y - p, lr = 0.08 / Math.sqrt(1 + model.n / 400);
+      // examen antes de aprender: su estimación para un caso que no ha visto, frente a decir siempre la media (memoria de unos 2 000 casos)
+      model.se = model.se * 0.9995 + e * e; model.se0 = model.se0 * 0.9995 + (s.y - base) * (s.y - base);
+      for (var i = 0; i < s.x.length; i++) model.w[i] += lr * (e * s.x[i] - (i ? 0.002 * model.w[i] : 0));
+      model.n++; model.hits += s.y; added++; if (s.t > maxT) maxT = s.t;
+    });
+    model.last[key] = maxT;
+    return added;
+  }
+  function learnSkill(model) { return model.n >= 300 && model.se0 > 0 ? 1 - model.se / model.se0 : 0; } // > 0: estima mejor que la media en casos nuevos
+  function learnTop(model) { // qué ha pesado más hasta ahora, en palabras
+    var out = [];
+    for (var i = 1; i < model.w.length; i++) out.push({ name: LEARN[i], w: model.w[i] });
+    return out.filter(function (x) { return Math.abs(x.w) >= 0.05; }).sort(function (a, b) { return Math.abs(b.w) - Math.abs(a.w); }).slice(0, 3);
+  }
+
+  /* ---------- de qué lado se opera una zona: de dónde vino el precio ---------- */
+  /* Un soporte roto no pasa a resistencia (ni una resistencia rota a soporte) hasta que el precio se ha alejado de él, al otro lado,
+     al menos lo que mide el plan entero (las tres zonas). Mientras tanto no se opera de ningún lado: así nunca aparece una
+     resistencia roja pegada al precio justo después de romper un soporte, que podría volver a romperse en cualquier momento. */
+  function sideOf(z, k1, price, a1, stopDist) {
+    var side = sideRaw(z, k1, price, a1, stopDist);
+    if (!side || !z.origin || (side === 'R') !== (z.origin === 'L')) return side;   // no cambia de papel
+    var up = side === 'R', buf = 0.2 * a1, n = k1.n, last = -1, ext = price, j;
+    for (j = n - 1; j >= 0; j--) if (up ? k1.c[j] > z.hi + buf : k1.c[j] < z.lo - buf) { last = j; break; }
+    if (last < 0) return side;                                    // cambió de papel antes de las velas que hay: hace mucho
+    for (j = last + 1; j < n; j++) { if (up ? k1.l[j] < ext : k1.h[j] > ext) ext = up ? k1.l[j] : k1.h[j]; }
+    return (up ? z.lo - ext : ext - z.hi) >= stopDist ? side : null;
+  }
+  function sideRaw(z, k1, price, a1, stopDist) {
+    var buf = 0.2 * a1, n = k1.n;
+    function st(x) { return x > z.hi + buf ? 1 : (x < z.lo - buf ? -1 : 0); }
+    var now = st(price), j, s, from = Math.max(0, n - 1 - 96);
+    var maxRun = z.dom === 'D1' ? 24 : (z.dom === 'H4' ? 12 : 6);
+    if (now === 0) { // dentro: cuenta de dónde vino. Un paso breve al otro lado es el barrido, no un cambio de papel
+      var j1 = -1, s1 = 0, len = 0, s0 = 0;
+      for (j = n - 2; j >= from; j--) { s = st(k1.c[j]); if (s !== 0) { j1 = j; s1 = s; break; } }
+      if (!s1) return null;
+      for (j = j1; j >= from; j--) { s = st(k1.c[j]); if (s === 0) continue; if (s === s1) { len = j1 - j + 1; continue; } s0 = s; break; }
+      if (s0 === -s1) {
+        if (n - 2 - j1 >= 6) return s0 === 1 ? 'S' : 'R';   // lo rompió, pero ha vuelto y lleva velas apoyado en él: la rotura falló y recupera su papel
+        if (len <= maxRun) {
+          var swept = true;
+          for (j = j1 - len + 1; j <= j1; j++) { if (s1 === -1 ? k1.l[j] <= z.lo - stopDist : k1.h[j] >= z.hi + stopDist) { swept = false; break; } }
+          if (swept) return s0 === 1 ? 'S' : 'R';   // bajó, lo atravesó un momento y ha vuelto: sigue siendo soporte (y al revés en una resistencia)
+        }
+      }
+      return s1 === 1 ? 'S' : 'R';
+    }
+    var runStart = n - 1, prev = 0;
+    for (j = n - 2; j >= from; j--) { s = st(k1.c[j]); if (s === 0) continue; if (s === now) { runStart = j; continue; } prev = s; break; }
+    if (prev === -now) {
+      var ok = (n - 1 - runStart) <= maxRun;
+      if (ok) for (j = runStart; j < n; j++) { if (now === -1 ? k1.l[j] <= z.lo - stopDist : k1.h[j] >= z.hi + stopDist) { ok = false; break; } }
+      if (ok) return now === -1 ? 'S' : 'R';   // acaba de traspasarla: es el barrido, la zona sigue viva
+    }
+    return now === 1 ? 'S' : 'R';
+  }
+
+  /* velas de giro: las primeras velas que se dan la vuelta dentro de la zona o del barrido.
+     No basta la forma de la vela: se suman confirmaciones independientes en la temporalidad del gráfico.
+     Devuelve { índice: 1 | 2 } (1 = primera señal, 2 = giro confirmado) y, en .why, qué confirmaciones cumple cada vela. */
+  var TURN = [
+    [2.5, 'barrido de liquidez y recuperación'], [3, 'ruptura de la microestructura'], [2, 'vela que supera a la anterior'], [1.5, 'mecha larga de rechazo'],
+    [1, 'RSI girando'], [1, 'estocástico cruzando'], [1, 'MACD recuperando'], [1.5, 'divergencia con el RSI']
+  ];
+  function reversalMarks(c, s, buf, all) { // all: recorre todas las velas que recibe (para dibujar las flechas en el gráfico)
+    var out = {}, why = {}, n = c.length, start = all ? 0 : Math.max(0, n - 150), k = cols(start ? c.slice(start) : c), m = k.n, up = s.side === 'S', ep = null, j;
+    out.why = why;
+    if (m < 5) return out;
+    var r = rsi(k.c, 14), st = stochK(k, 14, 3), mh = macdHist(k.c);
+    for (var i = all ? 20 : Math.max(3, m - 80); i < m; i++) {
+      var hi = k.h[i], lo = k.l[i], rng = hi - lo, close = k.c[i], open = k.o[i], x = up ? lo : hi;
+      if (up ? lo <= s.stop : hi >= s.stop) { ep = null; continue; }                             // llegó al stop: no cuenta
+      if (up ? lo <= s.near + buf : hi >= s.near - buf) {                                       // la vela toca el soporte o la resistencia
+        if (!ep || (up ? x < ep.ext : x > ep.ext) || (ep.stage === 2 && i - ep.at > 8)) ep = { ext: x, stage: 0, at: -1, ref: 0, last: i }; // intento nuevo: primer toque, extremo nuevo (el giro anterior falló) o regreso posterior
+        else ep.last = i;
+      }
+      if (!ep) continue;
+      if (ep.stage === 1 && i - ep.at > 3) ep.stage = 0;                                        // la primera señal no se confirmó a tiempo
+      if (ep.stage === 0 && i - ep.last > 3) { ep = null; continue; }                           // se alejó sin dar señal
+      if (ep.stage === 2) { if (i - ep.last > 12) ep = null; continue; }                        // ya confirmado: una sola pareja de velas por intento
+      if (!(rng > 0) || !(up ? close > open : close < open)) continue;                          // tiene que cerrar a favor
+      var f = [];
+      if (up ? (ep.ext < s.far && close > s.far) : (ep.ext > s.far && close < s.far)) f.push(0);
+      var ex = up ? -Infinity : Infinity; for (j = Math.max(0, i - 6); j < i; j++) ex = up ? Math.max(ex, k.h[j]) : Math.min(ex, k.l[j]);
+      if (up ? close > ex : close < ex) f.push(1);
+      if (up ? close > k.h[i - 1] : close < k.l[i - 1]) f.push(2);
+      if ((up ? Math.min(open, close) - lo : hi - Math.max(open, close)) / rng >= 0.5) f.push(3);
+      var rx = up ? Math.min(r[i - 1], r[i - 2], r[i - 3]) : Math.max(r[i - 1], r[i - 2], r[i - 3]);
+      if (up ? (r[i] > r[i - 1] && rx < 38) : (r[i] < r[i - 1] && rx > 62)) f.push(4);
+      if (up ? (st[i] > st[i - 1] && st[i - 1] < 25) : (st[i] < st[i - 1] && st[i - 1] > 75)) f.push(5);
+      if (up ? (mh[i] > mh[i - 1] && mh[i - 1] > mh[i - 2]) : (mh[i] < mh[i - 1] && mh[i - 1] < mh[i - 2])) f.push(6);
+      var ce = up ? Infinity : -Infinity, ci = -1, pe = ce, pi = -1;                             // divergencia: precio más extremo que antes, RSI menos extremo
+      for (j = Math.max(0, i - 3); j <= i; j++) if (up ? k.l[j] < ce : k.h[j] > ce) { ce = up ? k.l[j] : k.h[j]; ci = j; }
+      for (j = Math.max(0, i - 16); j < i - 3; j++) if (up ? k.l[j] < pe : k.h[j] > pe) { pe = up ? k.l[j] : k.h[j]; pi = j; }
+      if (pi >= 0 && ci >= 0 && (up ? (ce < pe && r[ci] > r[pi] + 2) : (ce > pe && r[ci] < r[pi] - 2))) f.push(7);
+      var score = 0, names = []; for (j = 0; j < f.length; j++) { score += TURN[f[j]][0]; names.push(TURN[f[j]][1]); }
+      if (ep.stage === 1) {                                                                     // confirmación: cierra más allá de la primera vela de giro
+        if (up ? close > ep.ref : close < ep.ref) { out[i + start] = 2; why[i + start] = ['cierre más allá de la primera vela de giro'].concat(names); ep.stage = 2; ep.at = i; }
+        continue;
+      }
+      var lvl = score >= 6.5 ? 2 : (score >= 3 ? 1 : 0);
+      if (!lvl) continue;
+      out[i + start] = lvl; why[i + start] = names; ep.stage = lvl; ep.at = i; ep.ref = up ? hi : lo;
+    }
+    return out;
+  }
+
+  var STATE_TEXT = { far: 'Lejos', near: 'Acercándose', sup: 'En el soporte', u1: 'En zona 1', u2: 'En zona 2', u3: 'En zona 3', broken: 'Plan cancelado' };
+
+  function evalSetup(an, z, side, price) {
+    var A = an.atr, R = an.unit[z.dom], dep = an.depths[z.dom], dir = side === 'S' ? -1 : 1;
+    var near = side === 'S' ? z.hi : z.lo, far = side === 'S' ? z.lo : z.hi;
+    /* Las tres zonas empiezan donde acaba el soporte (o la resistencia), al otro lado: se entra solo si el precio lo rompe, va a por la
+       liquidez de detrás y vuelve (falso rompimiento). Ancho de cada zona, medido en ese activo desde el giro: la 1 llega hasta donde gira
+       la mitad de las veces, la 2 hasta las tres cuartas partes y la 3 hasta el stop, que deja dentro 9 de cada 10 giros. */
+    var b2 = dep.d2 * R, b3 = dep.d3 * R, bs = dep.stop * R, h = bs / 3;
+    var e1 = far, e2 = far + dir * b2, e3 = far + dir * b3, stop = far + dir * bs, t1 = near - dir * R;
+    var x = (price - near) * -dir, y = (price - far) * -dir, dist = x / A.H1, L, state;   // x: por encima del soporte (+); y: < 0 si ya lo ha roto
+    if (x >= 0) L = dist;
+    else if (y >= 0) L = 0;                                                                // dentro del soporte
+    else { var d = -y; L = d <= b2 ? -d / b2 : (d <= b3 ? -1 - (d - b2) / (b3 - b2) : -2 - (d - b3) / (bs - b3)); }
+    var eps = 1e-9 * Math.abs(near) + 1e-12;
+    if (y < 0 && -y >= bs - eps) state = 'broken';
+    else if (y < 0 && -y >= b3 - eps) state = 'u3';            // el precio está dentro de la franja de la Zona 3
+    else if (y < 0 && -y >= b2 - eps) state = 'u2';
+    else if (y < 0) state = 'u1';                               // acaba de romper el soporte: Zona 1
+    else if (x <= 0.15 * A.H1) state = 'sup';                  // en el soporte, todavía sin romperlo: se espera
+    else state = dist <= 1.5 ? 'near' : 'far';
+    var avg = (e1 + e2 + e3) / 3;
+    return {
+      side: side, zone: z, dir: dir, near: near, far: far, e1: e1, e2: e2, e3: e3, stop: stop, t1: t1, avg: avg, R: R, h: h,
+      rr1: Math.abs(t1 - e1) / Math.abs(e1 - stop), rr3: Math.abs(t1 - avg) / Math.abs(avg - stop),
+      dist: dist, distPct: 100 * x / price, L: Math.max(L, -3.2), state: state, active: state === 'u1' || state === 'u2' || state === 'u3'
+    };
+  }
+
+  /* Zonas de volumen y de liquidez: lo más cerca que se puede llegar a dónde entran las órdenes grandes sin ver el libro de órdenes.
+     · Perfil: cuánto se ha negociado en cada precio. Volumen real si el mercado lo da (cripto de Binance, petróleo y gas);
+       si no, el tiempo que el precio ha pasado en cada nivel. POC = el precio con más; zona de valor = el 70 % alrededor del POC.
+     · Nodos: picos del perfil. De cada uno se cuenta en cuántas llegadas el precio giró 1 ATR antes de atravesarlo 1 ATR
+       (por azar saldría la mitad): así se ve si de verdad hay alguien defendiendo ese precio.
+     · Liquidez: máximos y mínimos de giro que el precio aún no ha barrido. Ahí se acumulan los stops y las órdenes pendientes,
+       y el precio suele ir a buscarlos. Los cercanos entre sí (menos de 0,25 ATR) cuentan juntos. */
+  function flows(c, a, look) {
+    var n = c ? c.length : 0; if (n < 40 || !(a > 0)) return null;
+    var s0 = Math.max(0, n - (look || 400)), lo = Infinity, hi = -Infinity, real = 0, i, j;
+    for (i = s0; i < n; i++) { if (c[i].h > hi) hi = c[i].h; if (c[i].l < lo) lo = c[i].l; if (c[i].v > 0) real++; }
+    real = real > 0.8 * (n - s0);
+    var B = Math.max(24, Math.min(64, Math.round((hi - lo) / (a / 4)))), step = (hi - lo) / B; if (!(step > 0)) return null;
+    var raw = new Float64Array(B);
+    for (i = s0; i < n; i++) {
+      var k = c[i], b0 = Math.max(0, Math.floor((k.l - lo) / step)), b1 = Math.min(B - 1, Math.floor((k.h - lo) / step)), per = (real ? k.v || 0 : 1) / (b1 - b0 + 1);
+      for (j = b0; j <= b1; j++) raw[j] += per;
+    }
+    var w = new Float64Array(B), tot = 0, poc = 0;
+    for (j = 0; j < B; j++) { w[j] = (raw[j] * 2 + (j > 0 ? raw[j - 1] : raw[j]) + (j < B - 1 ? raw[j + 1] : raw[j])) / 4; tot += w[j]; if (w[j] > w[poc]) poc = j; }
+    if (!(tot > 0)) return null;
+    var v0 = poc, v1 = poc, acc = w[poc];
+    while (acc < 0.7 * tot && (v0 > 0 || v1 < B - 1)) { var dn = v0 > 0 ? w[v0 - 1] : -1, up = v1 < B - 1 ? w[v1 + 1] : -1; if (up >= dn) acc += w[++v1]; else acc += w[--v0]; }
+    var mean = tot / B, nodes = [];
+    for (j = 0; j < B; j++) {
+      if (w[j] < 1.25 * mean || (j > 0 && w[j - 1] > w[j]) || (j < B - 1 && w[j + 1] >= w[j])) continue;
+      var nd = { p: lo + (j + 0.5) * step, lo: lo + j * step, hi: lo + (j + 1) * step, w: w[j] / w[poc], poc: j === poc, n: 0, r: 0 };
+      react(c, nd.p, a, nd); nodes.push(nd);
+    }
+    // liquidez: giros de 5 velas a cada lado que el precio no ha vuelto a superar
+    var L = 5, pivH = [], pivL = [], sufH = new Float64Array(n + 1), sufL = new Float64Array(n + 1);
+    sufH[n] = -Infinity; sufL[n] = Infinity;
+    for (i = n - 1; i >= 0; i--) { sufH[i] = Math.max(sufH[i + 1], c[i].h); sufL[i] = Math.min(sufL[i + 1], c[i].l); }
+    for (i = Math.max(L, s0); i < n - L; i++) {
+      var isH = true, isL = true;
+      for (j = i - L; j <= i + L && (isH || isL); j++) { if (j === i) continue; if (c[j].h >= c[i].h) isH = false; if (c[j].l <= c[i].l) isL = false; }
+      if (isH && sufH[i + 1] < c[i].h) pivH.push({ i: i, p: c[i].h });
+      if (isL && sufL[i + 1] > c[i].l) pivL.push({ i: i, p: c[i].l });
+    }
+    function pools(list, up) {
+      list.sort(function (x, y) { return up ? x.p - y.p : y.p - x.p; });          // del más cercano al precio al más lejano
+      var out = [];
+      list.forEach(function (pv) {
+        var last = out[out.length - 1];
+        if (last && Math.abs(pv.p - last.p0) <= 0.25 * a) { last.n++; last.i = Math.min(last.i, pv.i); if (up ? pv.p > last.p : pv.p < last.p) last.p = pv.p; }
+        else out.push({ p: pv.p, p0: pv.p, i: pv.i, n: 1, up: up });
+      });
+      return out.slice(0, 4).map(function (x) { return { p: x.p, i: x.i, n: x.n, up: up, t: c[x.i].t }; });
+    }
+    return {
+      real: real, bars: n - s0, lo: lo, step: step, w: Array.prototype.slice.call(w).map(function (x) { return x / w[poc]; }),
+      poc: lo + (poc + 0.5) * step, vah: lo + (v1 + 1) * step, val: lo + v0 * step, nodes: nodes,
+      above: pools(pivH, true), below: pools(pivL, false), from: s0
+    };
+  }
+  function react(c, p, a, out) { // llegadas al precio p desde al menos 1 ATR de distancia: ¿giró 1 ATR antes de atravesarlo 1 ATR?
+    var st = 0, n = c.length;
+    for (var i = 0; i < n; i++) {
+      var k = c[i];
+      if (k.l > p + a) { st = 1; continue; }
+      if (k.h < p - a) { st = -1; continue; }
+      if (!st || k.l > p || k.h < p) continue;
+      for (var j = i + 1; j < Math.min(n, i + 60); j++) {
+        var back = st > 0 ? c[j].h >= p + a : c[j].l <= p - a, thru = st > 0 ? c[j].l <= p - a : c[j].h >= p + a;
+        if (back && thru) break;
+        if (back) { out.n++; out.r++; break; }
+        if (thru) { out.n++; break; }
+      }
+      st = 0;
+    }
+  }
+
+  function fibOf(c, a) { // último impulso de las 120 últimas velas de 1 hora: del mínimo al máximo, o al revés si el mínimo llegó después
+    var n = c.length, s0 = Math.max(0, n - 120), hi = -Infinity, lo = Infinity, hiI = -1, loI = -1;
+    for (var i = s0; i < n; i++) { if (c[i].h > hi) { hi = c[i].h; hiI = i; } if (c[i].l < lo) { lo = c[i].l; loI = i; } }
+    return hi - lo > 2 * a ? { hi: hi, lo: lo, up: hiI > loI } : null;
+  }
+
+  function scoreSetup(an, s, ctx) {
+    var z = s.zone, ind = an.ind, sgn = s.side === 'S' ? 1 : -1, reasons = [], c = 0;
+    var prof = an.profiles[z.dom], edge = 1;
+    if (prof && prof.n >= 12) edge = clamp(1 + ((prof.bounces + 10) / (prof.n + 20) - 0.5) * 0.8, 0.85, 1.2);
+    var base = clamp(z.strength * edge, 0, 100);
+    var prox = s.active ? 1 : (s.state === 'broken' ? 0 : Math.exp(-Math.max(0, s.dist) / 1.3));
+    var tfTxt = z.tfs.map(function (t) { return TF_SHORT[t]; }).join(' + ');
+    reasons.push({ k: 'zona', d: Math.round(base), text: (s.side === 'S' ? 'Soporte' : 'Resistencia') + ' en ' + tfTxt + (z.n > 1 ? ' con ' + z.n + ' giros en el mismo precio: hay liquidez acumulada al otro lado' : ', nacido de un giro de ' + z.reaction.toFixed(1) + ' ATR') });
+    if (z.fresh) reasons.push({ k: 'fresh', d: 0, text: (s.side === 'S' ? 'Soporte intacto' : 'Resistencia intacta') + ': el precio no había vuelto desde que se formó' });
+    else if (z.flipped) reasons.push({ k: 'flip', d: 0, text: s.side === 'S' ? 'Antigua resistencia que el precio rompió: ahora hace de soporte' : 'Antiguo soporte que el precio rompió: ahora hace de resistencia' });
+    else if (z.tests) reasons.push({ k: 'tests', d: 0, text: 'Ya aguantó ' + z.tests + (z.tests === 1 ? ' regreso' : ' regresos') + ' del precio' });
+    if (z.tfs.length > 1) reasons.push({ k: 'conf', d: 0, text: 'Coinciden ' + z.tfs.length + ' temporalidades en el mismo precio' });
+    var fav = 0, against = 0;
+    ind.list.forEach(function (x) { if (x.signal * sgn > 0) fav++; else if (x.signal * sgn < 0) against++; });
+    var cons = ind.consensus * sgn, dc = Math.round(15 * cons); c += dc;
+    reasons.push({ k: 'ind', d: dc, text: fav + ' de ' + ind.list.length + ' indicadores a favor, ' + against + ' en contra' });
+    var t4 = ind.trend.H4 * sgn, td = ind.trend.D1 * sgn;
+    if (t4) { c += 6 * t4; reasons.push({ k: 't4', d: 6 * t4, text: 'Estructura de 4 horas ' + (t4 > 0 ? 'a favor' : 'en contra') }); }
+    if (td) { c += 4 * td; reasons.push({ k: 'td', d: 4 * td, text: 'Estructura diaria ' + (td > 0 ? 'a favor' : 'en contra') }); }
+    if (an.range && an.range.hi > an.range.lo) {
+      var pos = (an.price - an.range.lo) / (an.range.hi - an.range.lo), pd = pos < 0.45 ? 1 : (pos > 0.55 ? -1 : 0);
+      if (pd) { c += 4 * pd * sgn; reasons.push({ k: 'pd', d: 4 * pd * sgn, text: pd > 0 ? 'Descuento: el precio está en la mitad baja del rango de 4 horas' : 'Premium: el precio está en la mitad alta del rango de 4 horas' }); }
+    }
+    if (an.speed > 3) { c -= 6; reasons.push({ k: 'vel', d: -6, text: 'Llegada rápida (' + an.speed.toFixed(1) + ' ATR en 6 horas): es más probable que ' + (s.side === 'S' ? 'barra el soporte' : 'barra la resistencia') }); }
+    if (prof && prof.n >= 12) reasons.push({ k: 'hist', d: Math.round((edge - 1) * z.strength), text: 'Historial de este activo en sus soportes y resistencias de ' + TF_SHORT[z.dom] });
+    if (ctx && ctx.learn && ctx.learn.n >= 300 && an.ind.feat) {
+      var lx = an.ind.feat(an.k1.n - 1, sgn, z.dom);
+      if (lx) {
+        var lp = learnP(ctx.learn, lx), lb = ctx.learn.hits / ctx.learn.n, good = learnSkill(ctx.learn) > 0.002, ld = good ? clamp(Math.round((lp - lb) * 60), -8, 8) : 0;
+        c += ld; s.learn = lp;
+        reasons.push({ k: 'learn', d: ld, text: good ? 'Aprendizaje: ajuste por lo aprendido en casos parecidos' : 'Aprendizaje: todavía no cambia la puntuación' });
+      }
+    }
+    s.turn = 0;
+    if (s.active && an.tail && an.tail.length > 3) {
+      var mk = reversalMarks(an.tail, s, 0.15 * s.R), nt = an.tail.length;
+      var ti = mk[nt - 1] ? nt - 1 : (mk[nt - 2] ? nt - 2 : -1);
+      s.turn = ti < 0 ? 0 : mk[ti]; s.turnWhy = ti < 0 ? [] : mk.why[ti];
+      if (s.turn) { var dt = s.turn === 2 ? 10 : 6; c += dt; reasons.push({ k: 'turn', d: dt, text: (s.turn === 2 ? 'Giro confirmado en 1 hora: ' : 'Primera señal de giro en 1 hora: ') + s.turnWhy.join(', ') }); }
+    }
+    var fl = an.flows, A1 = an.atr.H1;
+    if (fl) { // volumen y liquidez: dan contexto; no cambian la puntuación mientras no se demuestre que mejoran los aciertos
+      var nd = null;
+      fl.nodes.forEach(function (x) { if (x.p >= z.lo - 0.3 * A1 && x.p <= z.hi + 0.3 * A1 && (!nd || x.w > nd.w)) nd = x; });
+      if (nd) reasons.push({ k: 'vol', d: 0, text: (fl.real ? 'Precio con mucho volumen negociado' : 'Precio donde el mercado ha pasado mucho tiempo') + (nd.poc ? ' (el POC, el que más de las últimas ' + fl.bars + ' horas)' : '') });
+      var pool = (s.side === 'S' ? fl.below : fl.above).filter(function (x) { return (x.p - s.near) * s.dir > 0; })[0];
+      if (pool && pool.n >= 2) {
+        var inside = (s.stop - pool.p) * s.dir > 0, k2 = (pool.p - s.e2) * s.dir >= 0 ? (pool.p - s.e3) * s.dir >= 0 ? 3 : 2 : 1;
+        reasons.push({ k: 'liq', d: 0, text: (s.side === 'S' ? 'Por debajo hay ' + pool.n + ' mínimos' : 'Por encima hay ' + pool.n + ' máximos') + ' sin barrer: liquidez acumulada. ' +
+          (inside ? 'Queda en la zona ' + k2 + ': es probable que el precio vaya a por ella antes de girar' : 'Queda más allá del stop loss: si el precio va a por ella, saltaría el stop') });
+      }
+    }
+    var fb = an.fib;
+    if (fb && (s.side === 'S') === fb.up) { // un retroceso hacia la zona: ¿cae en un nivel de Fibonacci?
+      var fr = [0.382, 0.5, 0.618, 0.786].filter(function (r) { var p = fb.up ? fb.hi - r * (fb.hi - fb.lo) : fb.lo + r * (fb.hi - fb.lo); return p >= z.lo - 0.25 * A1 && p <= z.hi + 0.25 * A1; })[0];
+      if (fr) reasons.push({ k: 'fib', d: 0, text: 'Coincide con el ' + String(+(fr * 100).toFixed(1)).replace('.', ',') + ' % de Fibonacci del último impulso ' + (fb.up ? 'alcista' : 'bajista') + ' de 1 hora' + (fr === 0.618 || fr === 0.5 ? ', uno de los niveles más vigilados' : '') });
+    }
+    if (ctx && ctx.news) { c -= ctx.news.penalty; reasons.push({ k: 'news', d: -ctx.news.penalty, text: ctx.news.text }); }
+    if (ctx && ctx.shock) { c -= 8; reasons.push({ k: 'shock', d: -8, text: 'Movimiento brusco en los últimos minutos' }); }
+    s.fav = fav; s.against = against; s.cons = cons; s.reasons = reasons;
+    s.score = Math.round(clamp(base * (0.25 + 0.75 * prox) + c * (0.4 + 0.6 * prox), 0, 99));
+    return s;
+  }
+
+  /* ---------- análisis completo de un activo ---------- */
+  function analyze(data, price, now, ctx) {
+    var H1 = data.H1, D1 = data.D1, H4 = data.H4 && data.H4.length > 60 ? data.H4 : aggregate(H1, GRAN.H4), M30 = data.M30 && data.M30.length > 120 ? data.M30 : null;
+    if (!H1 || H1.length < 120 || !D1 || D1.length < 20) return null;
+    var k1 = cols(H1), k4 = cols(H4), kd = cols(D1), k30 = M30 ? cols(M30) : null;
+    var a1 = atr(k1, 14), a4 = atr(k4, 14), ad = atr(kd, 14), a30 = k30 ? atr(k30, 14) : null;
+    var A = { H1: a1[k1.n - 1], H4: a4[k4.n - 1], D1: ad[kd.n - 1], M30: k30 ? a30[k30.n - 1] : null };
+    if (!(A.H1 > 0) || !(A.H4 > 0) || !(A.D1 > 0)) return null;
+    if (!(A.M30 > 0)) { k30 = null; A.M30 = 0.7 * A.H1; }
+    if (price == null) price = k1.c[k1.n - 1];
+    now = now || k1.t[k1.n - 1] + GRAN.H1;
+    // soportes y resistencias de 30 minutos, 1 hora, 4 horas y 1 día (los de 30 minutos, desde el 16-11-2026)
+    var pv = { M30: k30 ? findPivots(k30, CFG.pivotK.M30, a30, 'M30') : [], H1: findPivots(k1, CFG.pivotK.H1, a1, 'H1'), H4: findPivots(k4, CFG.pivotK.H4, a4, 'H4'), D1: findPivots(kd, CFG.pivotK.D1, ad, 'D1') };
+    // R = unidad del plan: crece con la temporalidad de la zona, pero se mantiene operable en intradía
+    var unit = { M30: A.M30, H1: A.H1, H4: Math.sqrt(A.H1 * A.H4), D1: Math.sqrt(A.H1 * A.D1) };
+    var cases = [], profiles = { M30: sweepProfile(k1, pv.M30, 'M30', unit.M30, null), H1: sweepProfile(k1, pv.H1, 'H1', unit.H1, cases), H4: sweepProfile(k1, pv.H4, 'H4', unit.H4, cases), D1: sweepProfile(k1, pv.D1, 'D1', unit.D1, cases) };
+    var eps = 0.02 * A.H1;
+    var an = {
+      price: price, atr: A, unit: unit, profiles: profiles,
+      depths: (function () { var gr = ctx && ctx.group; return { M30: ladderDepths(sweepDepths(k1, pv.M30, 'M30', unit.M30), gr), H1: ladderDepths(sweepDepths(k1, pv.H1, 'H1', unit.H1), gr), H4: ladderDepths(sweepDepths(k1, pv.H4, 'H4', unit.H4), gr), D1: ladderDepths(sweepDepths(k1, pv.D1, 'D1', unit.D1), gr) }; })(),
+      zones: buildZones(dedupe(dedupe(dedupe(pv.M30, pv.H1, GRAN.H1, eps), pv.H4, GRAN.H4, eps), pv.D1, GRAN.D1, eps).concat(dedupe(dedupe(pv.H1, pv.H4, GRAN.H4, eps), pv.D1, GRAN.D1, eps), dedupe(pv.H4, pv.D1, GRAN.D1, eps), pv.D1), { M30: k30, H1: k1, H4: k4, D1: kd }, A, now),
+      ind: indicatorPanel(k1, k4, kd, { H1: structure(k1, pv.H1, CFG.pivotK.H1), H4: structure(k4, pv.H4, CFG.pivotK.H4), D1: structure(kd, pv.D1, CFG.pivotK.D1) }),
+      range: (function () { var hi = -Infinity, lo = Infinity; for (var i = Math.max(0, k4.n - 50); i < k4.n; i++) { if (k4.h[i] > hi) hi = k4.h[i]; if (k4.l[i] < lo) lo = k4.l[i]; } return { hi: hi, lo: lo }; })(),
+      speed: k1.n > 7 ? Math.abs(k1.c[k1.n - 1] - k1.c[k1.n - 7]) / A.H1 : 0,
+      change: kd.n > 1 ? 100 * (price - kd.c[kd.n - 2]) / kd.c[kd.n - 2] : 0,
+      k1: k1, tail: H1.slice(-40), ctx: ctx || null, setups: [], best: null, flows: flows(H1, A.H1), fib: fibOf(H1, A.H1), m30: !!k30
+    };
+    var seen = {};                                               // el mismo giro puede estar en varias temporalidades: cuenta una vez, con la mayor
+    for (var ci = cases.length - 1; ci >= 0; ci--) { var cs = cases[ci], ck = cs.i + (cs.up ? 'u' : 'd'); if (seen[ck]) { cases.splice(ci, 1); continue; } seen[ck] = 1; cs.x = an.ind.feat(cs.i - 1, cs.up ? 1 : -1, cs.tf); }
+    an.cases = cases.filter(function (c) { return c.x; }).sort(function (a, b) { return a.t - b.t; });
+    return refresh(an, price, ctx);
+  }
+
+  /* recalcula solo lo que depende del precio: se llama en cada tick */
+  function refresh(an, price, ctx) {
+    if (!an) return an;
+    an.price = price; if (ctx !== undefined) an.ctx = ctx;
+    var bestS = null, bestR = null, reach = 6 * an.atr.H1;
+    for (var i = 0; i < an.zones.length; i++) {
+      var z = an.zones[i];
+      if (z.strength < CFG.minStrength) continue;
+      var stopDist = an.depths[z.dom].stop * an.unit[z.dom];
+      if (z.lo - price > reach + stopDist || price - z.hi > reach + stopDist) continue;
+      var side = sideOf(z, an.k1, price, an.atr.H1, stopDist);
+      if (!side) continue;
+      var s = scoreSetup(an, evalSetup(an, z, side, price), an.ctx);
+      if (s.state === 'broken') continue;
+      if (side === 'S') { if (!bestS || s.score > bestS.score) bestS = s; }
+      else if (!bestR || s.score > bestR.score) bestR = s;
+    }
+    an.setups = [bestS, bestR].filter(Boolean).sort(function (a, b) { return b.score - a.score; });
+    an.best = an.setups[0] || null;
+    // segundo objetivo: el borde cercano de la zona contraria
+    an.setups.forEach(function (s) {
+      var opp = s.side === 'S' ? bestR : bestS;
+      s.t2 = opp && (opp.near - s.t1) * -s.dir > 0 ? opp.near : s.t1 - s.dir * s.R;
+    });
+    return an;
+  }
+
+  function fmt(x, dec) { // punto decimal, como en las plataformas de trading y en Deriv; miles separados por un espacio fino
+    if (x == null || isNaN(x)) return '–';
+    var p = Math.abs(Number(x)).toFixed(dec).split('.');
+    p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+    return (x < 0 ? '-' : '') + p.join('.');
+  }
+  function summary(name, an, dec) {
+    var s = an && an.best;
+    if (!s) return name + ' no tiene ningún soporte ni resistencia relevante cerca del precio.';
+    var z = s.zone, kind = s.side === 'S' ? 'soporte' : 'resistencia', tfs = z.tfs.map(function (t) { return TF_SHORT[t]; }).join(' + ');
+    var zone = 'su ' + kind + ' en ' + tfs + ' (' + fmt(z.lo, dec) + ' a ' + fmt(z.hi, dec) + ')';
+    var t4 = an.ind.trend.H4, txt = name + ' ' + (s.active ? 'ha roto ' + zone + ' y está en la zona ' + s.state.slice(1) : s.state === 'sup' ? 'está en ' + zone + ', todavía sin ' + (s.side === 'S' ? 'romperlo' : 'romperla') : 'está a ' + fmt(Math.max(0, s.dist), 1) + ' ATR de ' + zone) + '. ';
+    if (s.turn) txt += (s.turn === 2 ? 'Giro confirmado' : 'Primera señal de giro') + ' en 1 hora. ';
+    txt += 'Estructura de 4 horas ' + (t4 > 0 ? 'alcista' : t4 < 0 ? 'bajista' : 'sin dirección') + '; ' + s.fav + ' de ' + an.ind.list.length + ' indicadores apoyan ' + (s.side === 'S' ? 'la compra' : 'la venta') + '.';
+    return txt;
+  }
+
+  /* flechas de entrada para el gráfico: velas donde el precio gira dentro de las zonas del plan, ya confirmadas, con la zona en la que giró
+     y la vela que lo confirmó (e). Solo desde que existe el soporte o la resistencia. Hay que pasarle solo velas cerradas. */
+  function turns(c, s) {
+    if (!s || !c || c.length < 40 || !(s.R > 0)) return [];
+    var n = c.length, from = 0, t0 = s.zone && s.zone.firstT;
+    if (t0) { var a = 0, b = n - 1; while (a < b) { var m = (a + b) >> 1; if (c[m].t < t0) a = m + 1; else b = m; } from = a; }
+    var st = Math.max(0, Math.min(from, n - 40) - 30), mk = reversalMarks(c.slice(st), s, 0.15 * s.R, true), out = [], up = s.side === 'S', env = nwEnv(c.map(function (x) { return x.c; }), cols(c));
+    Object.keys(mk).forEach(function (key) {
+      if (key === 'why') return;
+      var i = +key + st; if (i < from || i >= n) return;
+      var x = up ? Infinity : -Infinity, outNW = false;
+      for (var j = Math.max(0, i - 6); j <= i; j++) { x = up ? Math.min(x, c[j].l) : Math.max(x, c[j].h); if (j >= i - 3 && (up ? c[j].l <= env.lo[j] : c[j].h >= env.up[j])) outNW = true; }   // hasta dónde llegó antes de girar
+      if (!outNW) return;                                                                                // la flecha solo se pone si el giro sale de la banda Umbral
+      var zone = (x - s.e3) * s.dir > 0 ? 3 : (x - s.e2) * s.dir > 0 ? 2 : 1;
+      out.push({ i: i, lvl: mk[key], zone: zone, up: up, why: mk.why[key] || [] });
+    });
+    out.sort(function (p, q) { return p.i - q.i; });
+    var res = [];   // solo giros confirmados: la flecha va en la vela donde gira y aparece al cerrar la vela que lo confirma (e); sin «primeras señales» que luego se borran
+    for (var q = 0; q < out.length; q++) {
+      var t = out[q], nx = out[q + 1];
+      if (t.lvl === 1) { if (nx && nx.lvl === 2 && nx.i - t.i <= 4) { t.lvl = 2; t.e = nx.i; res.push(t); q++; } continue; }
+      t.e = t.i; res.push(t);
+    }
+    return res;
+  }
+
+  /* Confirmación de suelo y de techo para entrar, en los gráficos de 1, 3, 5 y 15 minutos (decidido el 16-11-2026).
+     Las tres zonas quedan al otro lado del soporte (o de la resistencia). Cuando el precio lo rompe y entra en ellas, el suelo es la
+     vela más baja desde que entró. Hay entrada cuando pasan n velas (1, 2 o 3) sin perforar ese mínimo y una cierra por encima del
+     máximo de la vela del suelo. En una resistencia, al revés: techo y venta. La flecha va en la vela del suelo y aparece al cerrar la
+     vela que lo confirma (e), así no se repinta. Si después el precio perfora ese suelo sin llegar al stop, se busca un suelo nuevo:
+     otra entrada, pero solo en una zona donde aún no la haya habido (una por zona y rotura: como mucho tres; regla del 16-11-2026,
+     también en 15 minutos). Si toca el stop, el plan se rompe y no hay más entradas hasta que el precio
+     vuelva a su lado del soporte. Cada entrada se comprueba (res): acierta si el precio avanza a favor lo mismo que arriesga hasta el
+     suelo (o el techo) antes de perforarlo. c: solo velas cerradas. */
+  function floors(c, s, nConf, all) {
+    var out = []; if (!s || !c || c.length < 8 || !(s.R > 0)) return out;
+    var N = nConf === 1 || nConf === 3 ? nConf : 2, up = s.side === 'S', n = c.length, from = 0, t0 = s.zone && s.zone.firstT, i, j;
+    if (t0 && !all) { var a = 0, b = n - 1; while (a < b) { var m = (a + b) >> 1; if (c[m].t < t0) a = m + 1; else b = m; } from = a; }
+    var st = 0, f = -1, hold = 0, last = null, used = {};   // st: 0 esperando que entre en las zonas · 1 buscando el suelo · 2 entrada hecha · 3 plan roto
+    function ext(k) { return up ? c[k].l : c[k].h; }
+    function deeper(x, y) { return up ? x < y : x > y; }
+    for (i = from; i < n; i++) {
+      var k = c[i], x = ext(i), back = up ? k.c > s.near : k.c < s.near;
+      if (deeper(x, s.stop) || x === s.stop) { st = 3; f = -1; hold = 0; continue; }                     // tocó el stop: plan roto
+      if (st === 3) { if (up ? k.c > s.e1 : k.c < s.e1) { st = 0; used = {}; } continue; }               // vuelve a su lado: se puede empezar otra vez
+      if (st === 2) { if (back) { st = 0; used = {}; continue; } if (deeper(x, last)) { st = 1; f = i; hold = 0; } continue; }   // tras una entrada, solo un suelo más bajo
+      if (st === 0) { if (deeper(x, s.e1)) { st = 1; f = i; hold = 0; } continue; }                       // rompe el soporte: entra en la Zona 1 o más
+      if (deeper(x, ext(f))) { f = i; hold = 0; continue; }                                                // mínimo nuevo: el suelo baja hasta aquí
+      hold++;
+      if (hold > N + 10) { st = 2; last = ext(f); f = -1; hold = 0; continue; }                            // demasiado tarde: ya no es entrada (solo un suelo más bajo o volver a empezar)
+      if (hold >= N && (up ? k.c > c[f].h : k.c < c[f].l)) {
+        var xf = ext(f), zone = (xf - s.e3) * s.dir >= 0 ? 3 : (xf - s.e2) * s.dir >= 0 ? 2 : 1, entry = k.c, risk = (entry - xf) * (up ? 1 : -1);
+        if (used[zone]) { st = 2; last = xf; f = -1; hold = 0; continue; }                                 // una sola entrada por zona en cada rotura: como mucho tres
+        used[zone] = 1;
+        var t = { i: f, e: i, up: up, lvl: 2, zone: zone, n: N, floor: xf, entry: entry, why: [(up ? 'suelo' : 'techo') + ' en la zona ' + zone, N === 1 ? 'confirmado con 1 vela' : 'confirmado con ' + N + ' velas'] };
+        if (risk > 0) {                                                                                    // ¿llega a favor lo que arriesga antes de perforar el suelo?
+          for (j = i + 1; j < n; j++) {
+            if (deeper(ext(j), xf) || ext(j) === xf) { t.res = 0; break; }
+            if (up ? c[j].h >= entry + risk : c[j].l <= entry - risk) { t.res = 1; break; }
+          }
+        }
+        out.push(t); st = 2; last = xf; f = -1; hold = 0;
+      }
+    }
+    return out;
+  }
+  var CONF_TF = {};   // las entradas por suelo o techo confirmado en minutos (1, 3, 5 y 15 min) están apagadas desde el 16-11-2026: la comisión se come la ventaja. En 15 min solo se ven las zonas de 1D y 4H
+
+  /* ---------- olas del precio: zigzag propio (no se dibuja; ideas de Francisco del 16-11-2026) ----------
+     Un giro queda confirmado cuando el precio se aleja k ATR(14) de su extremo en una vela posterior a la del extremo: así nunca se
+     repinta (en la vela del extremo no se sabe qué llegó antes, si el máximo o el mínimo). piv: giros confirmados
+     { i: vela del giro, p: precio, hi: si es un máximo, c: vela que lo confirma }. Por cada vela queda el estado del tramo en curso:
+     dir (1 sube, -1 baja, 0 todavía ninguno), ei (vela de su extremo hasta ese momento) y pv (índice del último giro confirmado). */
+  function zigzag(c, k, an) {
+    var n = c.length, z = { piv: [], dir: new Int8Array(n), ei: new Int32Array(n), pv: new Int32Array(n).fill(-1), k: k, atr: new Float64Array(n) };
+    if (n < 3) return z;
+    var a = atr(cols(c), an || 14), dir = 0, ei = 0, ep = 0, hiI = 0, loI = 0, i, j, th;
+    z.atr = a;
+    function turn(at, hi, i) {                                     // confirma el giro y busca el extremo del tramo nuevo desde él
+      z.piv.push({ i: at, p: hi ? c[at].h : c[at].l, hi: hi, c: i });
+      dir = hi ? -1 : 1; ei = at + 1; ep = hi ? c[ei].l : c[ei].h;
+      for (j = at + 2; j <= i; j++) if (hi ? c[j].l < ep : c[j].h > ep) { ep = hi ? c[j].l : c[j].h; ei = j; }
+    }
+    for (i = 0; i < n; i++) {
+      th = a[i] > 0 ? k * a[i] : 0;
+      if (dir === 0) {
+        if (i > 0 && th > 0) {
+          var dn = hiI < i && c[hiI].h - c[i].l >= th, upm = loI < i && c[i].h - c[loI].l >= th;
+          if (dn && (!upm || hiI > loI)) turn(hiI, true, i); else if (upm) turn(loI, false, i);
+        }
+        if (dir === 0) { if (c[i].h > c[hiI].h) hiI = i; if (c[i].l < c[loI].l) loI = i; ei = i; }
+      } else if (dir === 1) {
+        if (c[i].h > ep) { ei = i; ep = c[i].h; } else if (th > 0 && ep - c[i].l >= th) turn(ei, true, i);
+      } else if (c[i].l < ep) { ei = i; ep = c[i].l; } else if (th > 0 && c[i].h - ep >= th) turn(ei, false, i);
+      z.dir[i] = dir; z.ei[i] = ei; z.pv[i] = z.piv.length - 1;
+    }
+    return z;
+  }
+  /* tramos entre giros confirmados: tamaño en ATR de la vela donde empiezan y duración en velas */
+  function zzLegs(z) {
+    var out = [], P = z.piv;
+    for (var q = 1; q < P.length; q++) { var s = P[q - 1], e = P[q], A0 = z.atr[s.i] > 0 ? z.atr[s.i] : z.atr[e.i]; out.push({ q: q, up: e.hi, len: Math.abs(e.p - s.p), lenA: Math.abs(e.p - s.p) / A0, dur: e.i - s.i, t: e.c }); }
+    return out;
+  }
+  /* el movimiento largo en la vela j de la temporalidad alta: sentido, cuánto lleva (en ATR y frente al tramo anterior del mismo
+     sentido), cuánto ha retrocedido desde su extremo y cuántas velas lleva sin hacer otro extremo (fase lateral) */
+  function longMove(cH, z, j) {
+    if (j < 0 || !z.dir[j]) return null;
+    var d = z.dir[j], P = z.piv, q = z.pv[j], s = P[q], ei = z.ei[j], ext = d > 0 ? cH[ei].h : cH[ei].l, A0 = z.atr[s.i] > 0 ? z.atr[s.i] : z.atr[j];
+    var lenA = Math.abs(ext - s.p) / A0, prev = q >= 2 ? Math.abs(P[q - 1].p - P[q - 2].p) / (z.atr[P[q - 2].i] || A0) : null, back = d > 0 ? ext - cH[j].c : cH[j].c - ext;
+    return { dir: d, start: s.p, startI: s.i, ext: ext, extI: ei, lenA: lenA, ratio: prev ? lenA / prev : null, backA: back / (z.atr[j] || A0), since: j - ei, legBars: ei - s.i };
+  }
+  /* gráficos con flechas a favor del movimiento largo (decidido el 16-11-2026, estudio E26) y temporalidad de la que sale ese movimiento */
+  var WAVE_TF = { M30: 'H4', H1: 'D1', H4: 'D1' };   // 17-11-2026: sin gráficos de menos de 30 minutos; 4 horas a favor del día (E35e)
+  /* sentido del movimiento largo en cada vela de la temporalidad baja, solo con velas altas ya cerradas */
+  function waveDir(cL, gL, cH, zH, gH) {
+    var n = cL.length, d = new Int8Array(n), j = -1;
+    for (var i = 0; i < n; i++) { var tEnd = cL[i].t + gL; while (j + 1 < cH.length && cH[j + 1].t + gH <= tEnd) j++; d[i] = j >= 0 ? zH.dir[j] : 0; }
+    return d;
+  }
+  function confIndex(z, n) { var lo = new Float64Array(n), hi = new Float64Array(n); lo.fill(NaN); hi.fill(NaN); z.piv.forEach(function (p) { if (p.c < n) (p.hi ? hi : lo)[p.c] = p.p; }); return { lo: lo, hi: hi }; }
+  /* El objetivo de una entrada de tendencia, fijado en el momento de entrar (Francisco, 17-11 11:04: «cuando se quede muy cerca del objetivo,
+     que la demos por buena y la cerremos»; 11:06: el cajón sin verde). Con lo que se sabe en T (la hora de la entrada) y nada posterior:
+       1) el extremo del tramo en curso de la tendencia (el máximo o mínimo anterior), si queda al menos a 1 vez el riesgo;
+       2) si no, el borde más cercano de la siguiente zona de 1D/4H en contra que esté viva en T, a 1 vez el riesgo o más;
+       3) si no hay ninguno, 2 veces el riesgo.
+     Devuelve { p: precio, kind: 'ext' | 'zone' | 'rr' }. zl: zonas con su vida (sup, bot, top, t0, tb). */
+  function waveTarget(zl, T, E, up, ext, risk) {
+    var sg = up ? 1 : -1; if (!(risk > 0)) return null;
+    if (ext != null && (ext - E) * sg >= risk) return { p: ext, kind: 'ext' };
+    var best = null; (zl || []).forEach(function (z) {
+      if (z.t0 > T || z.tb <= T || z.sup === up) return; var lv = up ? z.bot : z.top; if ((lv - E) * sg < risk) return;
+      if (best == null || (lv - best) * sg < 0) best = lv;
+    });
+    return best != null ? { p: best, kind: 'zone' } : { p: E + sg * 2 * risk, kind: 'rr' };
+  }
+  /* seguir la ola: el stop empieza en el extremo de la ola y sube con cada suelo nuevo confirmado (en las ventas, baja con cada techo);
+     se sale al tocarlo o cuando cambia el movimiento largo. R = lo ganado entre lo arriesgado, menos la comisión (fracción del precio).
+     done: false si sigue abierta al final de las velas. Mismas reglas que el estudio E26c. */
+  function waveRide(cL, zL, hdir, x, cost, cap) {
+    var n = cL.length, up = x.up, E = cL[x.e].c, sgn = up ? 1 : -1, risk = (E - x.stop) * sgn; if (!(risk > 0)) return null;
+    var cf = zL.cf && zL.cf.n === n ? zL.cf : (zL.cf = confIndex(zL, n)); cf.n = n;
+    var st = x.stop, ex = E, xi = x.e, d0 = hdir[x.e], done = false, tgt = false, sti = x.e;   // sti: la vela desde la que vale el stop actual (la del giro que lo movió)
+    // el objetivo (x.tg, fijado al entrar): se da por alcanzado y se cierra al cubrir el 90 % del recorrido (x.near); si una misma vela
+    // toca el stop y ese nivel, cuenta el stop
+    var lvT = x.tg != null && (x.tg - E) * sgn > 0 ? E + (x.near || 0.9) * (x.tg - E) : null;
+    // proteger la ganancia (17-11, Francisco, 11:41; E55): el stop pasa a la entrada (break-even) en cuanto el precio avanza una vez el riesgo
+    // (x.be1R: forex e índices) o alcanza el objetivo (x.beAt: materias primas y cripto). Se mira con el extremo de la vela y vale desde la siguiente.
+    var beAt = x.beAt != null && (x.beAt - E) * sgn > 0 ? x.beAt : null, be1 = !!x.be1R, beOn = false;
+    // y en los índices (x.atrK, E56), desde ese mismo momento el stop acompaña al precio: el extremo de cada vela menos atrK veces el ATR(14)
+    var atrK = x.atrK || 0, za = zL.atr, best = 0;
+    for (var j = x.e + 1; j < n && j <= x.e + (cap || 4000); j++) {
+      var k = cL[j];
+      if (up ? k.l <= st : k.h >= st) { ex = up ? Math.min(k.o, st) : Math.max(k.o, st); xi = j; done = true; break; }
+      if (lvT != null && (up ? k.h >= lvT : k.l <= lvT)) { ex = up ? Math.max(k.o, lvT) : Math.min(k.o, lvT); xi = j; done = true; tgt = true; break; }
+      var nw = up ? cf.lo[j] : cf.hi[j]; if (nw === nw && (up ? nw > st : nw < st)) { st = nw; sti = j; }
+      if (!beOn && ((be1 && ((up ? k.h : k.l) - E) * sgn >= risk) || (beAt != null && (up ? k.h >= beAt : k.l <= beAt)))) { beOn = true; if (up ? E > st : E < st) { st = E; sti = j; } }
+      if (atrK) { var fv = ((up ? k.h : k.l) - E) * sgn; if (fv > best) best = fv; if (best >= risk && za && za[j] > 0) { var pa = (up ? k.h : k.l) - sgn * atrK * za[j]; if (up ? pa > st : pa < st) { st = pa; sti = j; } } }
+      ex = k.c; xi = j; if (hdir[j] !== d0) { done = true; break; }
+    }
+    return { be: beOn, sti: sti, R: (ex - E) * sgn / risk - (cost || 0) * E / risk, done: done, xi: xi, stop: st, risk: risk / E, tgt: tgt, ex: ex, lvT: lvT };
+  }
+  /* Sistema de 3 zonas (Francisco, 17-11-2026: «19 de 23 operaciones así»). Nadaraya-Watson invisible y sin repintar: en cada vela,
+     media de los cierres pasados con un núcleo gaussiano (h = 8); la banda es ± 3 veces el error medio absoluto de las últimas 500 velas.
+     A favor del movimiento largo de 1 día (el zigzag oculto de las flechas de ola), con la banda de la vela anterior:
+       zona 1 en la banda, zona 2 en el 127,2 % y zona 3 en el 161,8 % de la distancia de la línea central a la banda.
+     Zonas 1 y 2: binaria al cierre de la vela que la toca. Zona 3: multiplicador al cierre de la vela que la toca, stop en el 261,8 %,
+     que después sigue los giros confirmados y sale al cambiar el movimiento largo (de punta a punta). Las zonas 2 y 3 valen hasta
+     48 velas o hasta que el precio vuelve a la línea central. Una preparación cada vez. Solo velas cerradas: no repinta. */
+  function nadaraya(C, h, mult, W) {
+    var n = C.length, K = Math.ceil(h * 6), w = [], nw = new Float64Array(n), up = new Float64Array(n), lo = new Float64Array(n), j, i;
+    for (j = 0; j < K; j++) w.push(Math.exp(-(j * j) / (2 * h * h)));
+    for (i = 0; i < n; i++) { var s = 0, sw = 0; for (j = 0; j < K && i - j >= 0; j++) { s += C[i - j] * w[j]; sw += w[j]; } nw[i] = s / sw; }
+    var acc = 0, err = new Float64Array(n);
+    for (i = 0; i < n; i++) { err[i] = Math.abs(C[i] - nw[i]); acc += err[i]; if (i >= W) acc -= err[i - W]; var mae = acc / Math.min(i + 1, W) * mult; up[i] = nw[i] + mae; lo[i] = nw[i] - mae; }
+    return { nw: nw, up: up, lo: lo };
+  }
+  var FIB_Z = [1, 1.272, 1.618], FIB_STOP = 2.618;
+  function fibEntries(c, gran, cH, gH, cost) {
+    var n = c.length, out = []; if (n < 620 || !cH || cH.length < 30) return out;
+    var C = cols(c).c, B = nadaraya(C, 8, 3, 500), zH = zigzag(cH, 3), hd = waveDir(c, gran, cH, zH, gH), zL = zigzag(c, 3), busy = -1;
+    for (var j = 600; j < n; j++) {
+      if (j <= busy) continue;
+      var k = c[j], mid = B.nw[j - 1], w = B.up[j - 1] - mid, dir = hd[j - 1]; if (!(w > 0) || !dir) continue;
+      var up = dir > 0, sg = up ? 1 : -1, lv = FIB_Z.map(function (f) { return mid - sg * f * w; }), st3 = mid - sg * FIB_STOP * w;
+      if (up ? k.l > lv[0] : k.h < lv[0]) continue;
+      out.push({ i: j, e: j, up: up, zone: 1, lvl: 2, px: lv[0] });
+      var end = Math.min(n - 1, j + 47), hit3 = -1, q;
+      for (q = j; q <= end; q++) {
+        if (q > j && (up ? c[q].h >= B.nw[q - 1] : c[q].l <= B.nw[q - 1])) { end = q; break; }   // volvió a la línea central: se acaba
+        if (q > j || true) { if (!out.some(function (x) { return x.set === j && x.zone === 2; }) && (up ? c[q].l <= lv[1] : c[q].h >= lv[1])) out.push({ i: q, e: q, up: up, zone: 2, lvl: 2, set: j, px: lv[1] }); }
+        if (up ? c[q].l <= lv[2] : c[q].h >= lv[2]) { hit3 = q; break; }
+      }
+      out[out.length - 1].set = out[out.length - 1].set || j;
+      if (hit3 >= 0) {
+        var x = { i: hit3, e: hit3, up: up, zone: 3, lvl: 2, set: j, stop: st3, px: lv[2] }; x.ride = waveRide(c, zL, hd, x, cost); out.push(x);
+        busy = x.ride ? (x.ride.done ? x.ride.xi : n) : hit3;
+      } else busy = q >= n ? n : end;
+    }
+    out.forEach(function (x) { if (x.set == null) x.set = x.i; });
+    return out;
+  }
+  /* Tiros en zona (Francisco, 17-11-2026: «a la mitad de la zona el primer tiro de medición y después los otros dos más alejados»;
+     «cuando el movimiento está estirado entra en la zona y hace un pequeño rebote que se aprovecha en binaria»). Estudios E44–E44e:
+     zonas de 1 día y 4 horas (giros confirmados, medio ATR de alto, vivas hasta que una vela de su temporalidad cierra al otro lado);
+     tiro 1 cuando el precio toca la mitad de la zona viniendo de fuera; tiros 2 y 3 a 1 y 2 ATR de 4 h más allá, en las 48 horas
+     siguientes. Cada tiro solo con el movimiento estirado: RSI de 14 velas de 1 h por debajo de 30 (compras) o por encima de 70
+     (ventas) en la última vela cerrada. Binaria a 1 hora desde el precio del tiro; CFD con objetivo y stop a 2 ATR de 1 h (24 h como
+     mucho). Todo con velas cerradas salvo el toque, que no se deshace: no repinta.
+     zl: zonas con { sup, bot, top, t0 (activa desde), tb (rota desde) }; h1: velas de 1 hora (la última puede estar formándose). */
+  function htfZoneList(cH, gH) {
+    var z = zigzag(cH, 3), at = atr(cols(cH), 14), out = [];
+    z.piv.forEach(function (p) {
+      if (p.c >= cH.length) return; var a = at[p.i] || at[p.c]; if (!(a > 0)) return;
+      var sup = !p.hi, ext = sup ? cH[p.i].l : cH[p.i].h, zo = { sup: sup, bot: sup ? ext : ext - 0.5 * a, top: sup ? ext + 0.5 * a : ext, t0: cH[p.c].t + gH, tb: Infinity, t: cH[p.i].t };
+      for (var q = p.c + 1; q < cH.length; q++) { if (sup ? cH[q].c < zo.bot : cH[q].c > zo.top) { zo.tb = cH[q].t + gH; break; } }
+      out.push(zo);
+    });
+    return out.sort(function (a, b) { return a.t0 - b.t0; });
+  }
+  /* Zonas institucionales (Francisco, 17-11: «queremos ver la zona donde sí están los institucionales»). En divisas no existe un registro
+     público de quién opera; lo que sí queda en el precio es la huella de una entrada grande de órdenes: un impulso que rompe la estructura
+     (cierra más allá del último máximo o mínimo relevante) recorriendo al menos 2 ATR en 6 velas o menos, o dejando un hueco sin negociar
+     (una vela cuyo extremo no solapa con la de dos velas antes). La zona es la última vela contraria antes de ese impulso (el «bloque de
+     órdenes»): demanda si el impulso fue alcista, oferta si fue bajista; si esa vela es muy grande, se queda con su parte más cercana al
+     origen (1.2 ATR). Vale desde el cierre de la vela que rompe (t0) hasta que un cierre la atraviesa entera (tb). tt: la primera vez que el
+     precio volvió a ella (null si sigue sin tocar). Solo velas cerradas y nada posterior a t0 para crearla: no repinta. */
+  function instZoneList(cH, gH) {
+    var n = cH ? cH.length : 0, out = []; if (n < 40) return out;
+    var at = atr(cols(cH), 14), P = zigzag(cH, 3).piv, q = 0, H = null, L = null, i, j, m;
+    function add(from, to, dir) {
+      var f0 = Math.max(0, from);
+      for (m = to - 1; m >= f0; m--) if (dir > 0 ? cH[m].c < cH[m].o : cH[m].c > cH[m].o) break;
+      if (m < f0) return; var k = cH[m], a = at[m] || at[to]; if (!(a > 0)) return;
+      var move = dir > 0 ? cH[to].c - k.l : k.h - cH[to].c, gap = false;
+      for (j = m + 1; j < to; j++) if (j > 0 && (dir > 0 ? cH[j + 1].l > cH[j - 1].h : cH[j + 1].h < cH[j - 1].l)) { gap = true; break; }
+      if (!((move >= 2 * a && to - m <= 6) || gap)) return;
+      var z = { sup: dir > 0, bot: dir > 0 ? k.l : Math.max(k.l, k.h - 1.2 * a), top: dir > 0 ? Math.min(k.h, k.l + 1.2 * a) : k.h, t: k.t, t0: cH[to].t + gH, tb: Infinity, tt: null, str: move / a, gap: gap };
+      for (j = to + 1; j < n; j++) {
+        if (z.tt == null && (dir > 0 ? cH[j].l <= z.top : cH[j].h >= z.bot)) z.tt = cH[j].t;
+        if (dir > 0 ? cH[j].c < z.bot : cH[j].c > z.top) { z.tb = cH[j].t + gH; break; }
+      }
+      out.push(z);
+    }
+    for (i = 1; i < n; i++) {
+      while (q < P.length && P[q].c <= i) { var p = P[q++]; if (p.hi) H = { level: p.p, idx: p.i, x: false }; else L = { level: p.p, idx: p.i, x: false }; }
+      if (H && !H.x && cH[i].c > H.level) { H.x = true; add(L ? L.idx : H.idx, i, 1); }
+      if (L && !L.x && cH[i].c < L.level) { L.x = true; add(H ? H.idx : L.idx, i, -1); }
+    }
+    return out.sort(function (x, y) { return x.t0 - y.t0; });
+  }
+  function tiroEntries(h1, zl, cost, h4c) {
+    var n = h1.length, out = []; if (n < 220 || !zl || !zl.length) return out;
+    var C = cols(h1), rs = rsi(C.c, 14), a1 = atr(C, 14), c4 = aggregate(h1, 14400), a4 = atr(cols(c4), 14), zp = 0, act = [], busy = 0, i4 = 0;
+    // primer toque de cada zona con las velas de 4 horas cerradas (cubren más tiempo que las de 1 hora): así «primera llegada» no depende
+    // de dónde empiezan las velas de 1 hora cargadas, y un tiro no puede aparecer después en el pasado
+    if (h4c && h4c.length) zl.forEach(function (z) {
+      var mid = (z.top + z.bot) / 2, a = 0, b = h4c.length; while (a < b) { var m = (a + b) >> 1; if (h4c[m].t < z.t0) a = m + 1; else b = m; }
+      for (var q = a; q < h4c.length; q++) { if (z.sup ? h4c[q].l <= mid : h4c[q].h >= mid) { z.t1 = h4c[q].t; break; } }
+    });
+    for (var j = 160; j < n; j++) {   // 160 velas para que el RSI y los ATR no dependan de dónde empiezan las velas cargadas
+      var T = h1[j].t, q, k;
+      while (zp < zl.length && zl[zp].t0 <= T) act.push(zl[zp++]);
+      for (q = act.length - 1; q >= 0; q--) if (act[q].tb <= T || act[q].used) act.splice(q, 1);
+      if (T < busy) continue;
+      for (q = 0; q < act.length; q++) {
+        var z = act[q], up = z.sup, mid = (z.top + z.bot) / 2;
+        if (!(up ? (h1[j].l <= mid && h1[j - 1].l > mid) : (h1[j].h >= mid && h1[j - 1].h < mid))) continue;
+        if (z.t1 != null && z.t1 < Math.floor(T / 14400) * 14400) { z.used = true; continue; }   // ya había llegado antes: no es la primera vez
+        z.used = true; busy = T + 48 * 3600;
+        while (i4 + 1 < c4.length && c4[i4 + 1].t + 14400 <= T) i4++;
+        var sg = up ? 1 : -1, A4 = a4[i4], lv = [mid, mid - sg * A4, mid - sg * 2 * A4];
+        // «si hay dos soportes cerca, el precio acaba yendo al segundo» (Francisco; E48: llega el 60 % y la binaria rebota el 55 % frente
+        // al 52 % a 1 ATR fijo): si hay otra zona viva del mismo lado a menos de 3 ATR de 4 h, el tiro 2 va a su mitad y el 3, 1 ATR más allá
+        var z2 = null, d2 = Infinity; zl.forEach(function (y) { if (y === z || y.sup !== up || y.t0 > T || y.tb <= T) return; var m2 = (y.top + y.bot) / 2, d = (mid - m2) * sg; if (d > 0.3 * A4 && d <= 3 * A4 && d < d2) { d2 = d; z2 = m2; } });
+        if (z2 != null) { lv[1] = z2; lv[2] = z2 - sg * A4; }
+        for (k = 0; k < 3; k++) {
+          var m, hit = -1; for (m = j; m < Math.min(n, j + 48); m++) if (up ? h1[m].l <= lv[k] : h1[m].h >= lv[k]) { hit = m; break; }
+          if (hit < 0) break;
+          if (!(up ? rs[hit - 1] < 30 : rs[hit - 1] > 70)) continue;   // estirado al llegar a ese tiro
+          // E50 (Francisco, 17-11: «cuando la vela es muy grande... el movimiento no se va a acabar ahí»): el tiro 1 no sale si la vela de 1 h
+          // anterior es enorme en contra (cuerpo de 2 ATR o más): el empuje suele seguir (rebota el 49–55 % frente al 57–58 %). En el tiro 2
+          // no cambia nada medible y en el tiro 3 es al revés (esa vela suele ser el último empujón: rebota el 60 %), así que allí no se filtra.
+          if (k === 0) { var pb = h1[hit - 1]; if ((pb.c - pb.o) * sg < 0 && Math.abs(pb.c - pb.o) >= 2 * a1[hit - 1]) continue; }
+          // E51 (17-11): sin entradas de 19:00 a 23:59 UTC, la ventana del cierre de Nueva York. Los diferenciales se abren, la liquidez cae y Deriv
+          // no vende binarias cortas de forex en esas horas; además, el «acierto» alto que salía ahí en el histórico era un efecto de los precios
+          // de venta (bid) al abrirse el diferencial, no un rebote real. Fuera de esa ventana la regla se sostiene (55 % en 25 pares, 2010–2026).
+          if (Math.floor(h1[hit].t / 3600) % 24 >= 19) continue;
+          var px = up ? Math.min(h1[hit].o, lv[k]) : Math.max(h1[hit].o, lv[k]), A1 = a1[hit - 1], x = { t: h1[hit].t, i: hit, up: up, tiro: k + 1, px: px, zt: z.t, ztf: z.tf };
+          x.bin = hit + 1 < n - 1 ? ((h1[hit + 1].c - px) * sg > 0 ? 1 : -1) : 0;   // binaria a 1 hora: se sabe al cerrar la vela siguiente
+          var TP = px + sg * 2 * A1, SL = px - sg * 2 * A1, ex = null, xi = hit, done = false, why = 3;   // why: 0 take profit, 1 stop loss, 2 límite de 24 velas, 3 abierta
+          // también la última vela, aunque se esté formando: si ya tocó el stop o el objetivo, eso no se deshace (el CFD se cierra en ese momento)
+          // la propia vela del toque: si después de tocar el nivel siguió hasta el stop (para llegar al stop tuvo que pasar antes por la
+          // entrada), el CFD se cerró ahí, en pérdida. Sin esto, una entrada arrollada en su misma vela seguía contando como abierta (E51).
+          if (up ? h1[hit].l <= SL : h1[hit].h >= SL) { ex = SL; done = true; why = 1; }
+          for (m = hit + 1; !done && m < n && m <= hit + 24; m++) { var b = h1[m]; xi = m; if (up ? b.l <= SL : b.h >= SL) { ex = SL; done = true; why = 1; break; } if (up ? b.h >= TP : b.l <= TP) { ex = TP; done = true; why = 0; break; } ex = b.c; if (m === hit + 24 && m < n - 1) { done = true; why = 2; } }
+          if (ex == null) ex = h1[n - 1].c;
+          x.cfd = { R: (ex - px) * sg / (2 * A1) - (cost || 0) * px / (2 * A1), done: done, xi: xi, tp: TP, sl: SL, ex: ex, why: why };
+          out.push(x);
+        }
+        break;
+      }
+    }
+    return out;
+  }
+  /* Sumar a favor (Francisco, 17-11: «podemos sumar operaciones una vez que vamos en la dirección del movimiento»; E43: en oro y cripto,
+     sumar a +1 R y +2 R pasa de +0,27 a +0,64 R por movimiento en el oro de 4 h). Para una flecha de ola x: cuando el precio va +1 R a
+     favor se suma una operación (y su stop sube como mínimo a la entrada de la flecha); a +2 R, otra. Salen con el stop de la ola o al
+     cambiar el movimiento largo. Solo velas cerradas: no repinta. */
+  function waveAdds(cL, zL, hdir, x, cost) {
+    var n = cL.length, up = x.up, E = cL[x.e].c, sg = up ? 1 : -1, r0 = (E - x.stop) * sg, adds = []; if (!(r0 > 0)) return adds;
+    var cf = zL.cf && zL.cf.n === n ? zL.cf : (zL.cf = confIndex(zL, n)); cf.n = n;
+    var st = x.stop, sti = x.e, d0 = hdir[x.e], ex = E, xi = x.e, done = false, lvT = x.tg != null && (x.tg - E) * sg > 0 ? E + (x.near || 0.9) * (x.tg - E) : null;
+    for (var j = x.e + 1; j < n; j++) {
+      var k = cL[j];
+      if (up ? k.l <= st : k.h >= st) { ex = up ? Math.min(k.o, st) : Math.max(k.o, st); xi = j; done = true; break; }
+      for (var m = adds.length + 1; m <= 2; m++) { var lv = E + sg * m * r0; if (lvT != null && (lv - lvT) * sg >= 0) break; if (up ? k.h >= lv : k.l <= lv) { var s0 = st; st = up ? Math.max(st, E) : Math.min(st, E); if (st !== s0) sti = j; adds.push({ i: j, e: j, up: up, m: m, px: lv, stop: st }); } else break; }
+      if (lvT != null && (up ? k.h >= lvT : k.l <= lvT)) { ex = up ? Math.max(k.o, lvT) : Math.min(k.o, lvT); xi = j; done = true; break; }   // el objetivo de la entrada: se cierra todo
+      var nw = up ? cf.lo[j] : cf.hi[j]; if (nw === nw && (up ? nw > st : nw < st)) { st = nw; sti = j; }
+      ex = k.c; xi = j; if (hdir[j] !== d0) { done = true; break; }
+    }
+    adds.forEach(function (a) { a.sti = Math.max(sti, a.i); var rk = (a.px - a.stop) * sg; a.R = rk > 0 ? (ex - a.px) * sg / rk - (cost || 0) * a.px / rk : 0; a.done = done; a.xi = xi; a.st = st; });
+    return adds;
+  }
+  /* Ampliaciones con el stop común (estudios E86–E89, 17-11-2026; idea de Francisco: ampliar lo que va ganando): cuando el precio avanza
+     d veces el riesgo de la entrada se abre otra posición que arriesga lo mismo que la primera, hasta M, y con cada una el stop de todas sube un
+     escalón (con la primera, a la entrada; con la segunda, a d veces el riesgo a favor...). Por lo demás, como la entrada: break-even en el
+     objetivo (x.beAt), trailing con cada giro confirmado y salida de todas a la vez cuando cambia la tendencia. A igualdad de caída de la cuenta
+     gana más que sin ampliar y que las ampliaciones con stop propio (waveAdds). Devuelve la entrada gestionada así (ride, con los campos de
+     waveRide) y las ampliaciones (los campos de waveAdds). Solo velas cerradas: no repinta. */
+  function waveSeq(cL, zL, hdir, x, cost, d, M) {
+    var n = cL.length, up = x.up, sg = up ? 1 : -1, E = cL[x.e].c, r0 = (E - x.stop) * sg; if (!(r0 > 0)) return null;
+    var cf = zL.cf && zL.cf.n === n ? zL.cf : (zL.cf = confIndex(zL, n)); cf.n = n;
+    var st = x.stop, sti = x.e, d0 = hdir[x.e], ex = E, xi = x.e, done = false, m = 0, adds = [], beOn = false;
+    var beAt = x.beAt != null && (x.beAt - E) * sg > 0 ? x.beAt : null;
+    for (var j = x.e + 1; j < n; j++) {
+      var k = cL[j];
+      if (up ? k.l <= st : k.h >= st) { ex = up ? Math.min(k.o, st) : Math.max(k.o, st); xi = j; done = true; break; }
+      while (m < M) {
+        var lv = E + sg * (m + 1) * d * r0; if (!(up ? k.h >= lv : k.l <= lv)) break; m++;
+        var ns = E + sg * (m - 1) * d * r0; if ((ns - st) * sg > 0) { st = ns; sti = j; }
+        adds.push({ i: j, e: j, up: up, m: m, px: lv, stop: st });
+      }
+      if (beAt != null && !beOn && (up ? k.h >= beAt : k.l <= beAt)) { beOn = true; if ((E - st) * sg > 0) { st = E; sti = j; } }
+      var nw = up ? cf.lo[j] : cf.hi[j]; if (nw === nw && (up ? nw > st : nw < st)) { st = nw; sti = j; }
+      ex = k.c; xi = j; if (hdir[j] !== d0) { done = true; break; }
+    }
+    adds.forEach(function (a) { a.sti = Math.max(sti, a.i); var rk = (a.px - a.stop) * sg; a.R = rk > 0 ? (ex - a.px) * sg / rk - (cost || 0) * a.px / rk : 0; a.done = done; a.xi = xi; a.st = st; });
+    return { ride: { be: beOn || (st - E) * sg >= 0, sti: sti, R: (ex - E) * sg / r0 - (cost || 0) * E / r0, done: done, xi: xi, stop: st, risk: r0 / E, tgt: false, ex: ex, lvT: null }, adds: adds };
+  }
+  /* Compra tras caída fuerte (índices de EE. UU. en el gráfico diario; estudio E34, aprobado por Francisco el 16-11-2026):
+     el RSI de 2 días baja de 10 con el cierre por encima de la media de 200 días. Entrada al cierre de ese día; stop a 2 ATR(14);
+     salida en el primer cierre por encima de la media de 5 días o a las 10 sesiones. Una operación a la vez. Solo velas cerradas: no repinta.
+     R con un coste estimado de CFD (0,04 % por operación más 0,015 % por día abierto), el mismo del estudio. done: false si sigue abierta. */
+  var DIP_SYMS = { OTC_SPC: 1, OTC_NDX: 1, OTC_DJI: 1 };
+  function dipEntries(d) {
+    var n = d.length, out = []; if (n < 210) return out;
+    var K = cols(d), C = K.c, rs = rsi(C, 2), ma = sma(C, 200), m5 = sma(C, 5), at = atr(K, 14);
+    for (var i = 201; i < n; i++) {
+      if (!(rs[i] < 10 && C[i] > ma[i] && at[i] > 0)) continue;
+      var E = C[i], risk = 2 * at[i], st = E - risk, ex = null, j = i + 1;
+      for (; j < n && j <= i + 10; j++) { if (d[j].l <= st) { ex = Math.min(d[j].o, st); break; } if (C[j] > m5[j] || j === i + 10) { ex = C[j]; break; } }
+      var x = { i: i, e: i, up: true, stop: st, lvl: 2 };
+      if (ex == null) { x.done = false; out.push(x); break; }             // sigue abierta: hasta que cierre no hay otra
+      x.done = true; x.xi = j; x.R = (ex - E - (0.0004 + 0.00015 * (j - i)) * E) / risk; out.push(x); i = j;
+    }
+    return out;
+  }
+  /* Compra en cierre débil (IBS; Pagonidis, «The IBS Effect: Mean Reversion in Equity ETFs», 2013). Estudio E61c (17-11-2026), sesión de
+     Deriv (07–21 h de Londres), 2011–2026, con coste de CFD: la vela diaria cierra en el 20 % más bajo de su rango → compra al cierre, stop a
+     2 ATR(14), salida en el primer cierre por encima del máximo del día anterior o a las 5 sesiones. US Tech 100: 430 operaciones, +0,080 R,
+     68 % ganadoras, positivo en 2011–18 (+0,061) y en 2019–26 (+0,093). En el US 500 y el Wall Street 30, con stop, no pasa la prueba como CFD;
+     como binaria Sube a 5 sesiones (7 días) sí, en los dos periodos (E65): US 500 59,4 % (59,3 | 59,5), Wall Street 30 62,2 % (58,5 | 64,0),
+     US Tech 100 63,3 % (64,2 | 62,8), frente al 57 % que pide el pago de Deriv a 1 día o más. Alemania 40 a 1 día solo pasa con los viernes.
+     cfd: se indica como CFD; bin: sesiones de la binaria. */
+  var IBS_SYMS = { OTC_NDX: { cfd: 1, bin: 5 }, OTC_SPC: { bin: 5 }, OTC_DJI: { bin: 5 } };
+  function ibsEntries(d) {
+    var n = d.length, out = []; if (n < 30) return out;
+    var K = cols(d), C = K.c, H = K.h, L = K.l, O = K.o, at = atr(K, 14);
+    for (var i = 20; i < n; i++) {
+      var rg = H[i] - L[i]; if (!(rg > 0 && at[i] > 0 && (C[i] - L[i]) / rg < 0.2)) continue;
+      var E = C[i], risk = 2 * at[i], st = E - risk, ex = null, j = i + 1;
+      for (; j < n && j <= i + 5; j++) { if (L[j] <= st) { ex = Math.min(O[j], st); break; } if (C[j] > H[j - 1] || j === i + 5) { ex = C[j]; break; } }
+      var x = { i: i, e: i, up: true, stop: st, lvl: 2, tgt: H[i] };
+      if (ex == null) { x.done = false; out.push(x); break; }             // sigue abierta: hasta que cierre no hay otra
+      x.done = true; x.xi = j; x.R = (ex - E - (0.0004 + 0.00015 * (j - i)) * E) / risk; out.push(x); i = j;
+    }
+    return out;
+  }
+  /* Compra en retroceso (Connors, «Short Term Trading Strategies That Work», 2008; estudio E74b, 17-11-2026, sesión de Deriv, 2011–2026):
+     sobre la media de 200 días, tres cierres seguidos a la baja o RSI de 2 días de hoy más el de ayer por debajo de 35, en días sin sobreventa
+     (RSI 2 < 10) ni cierre débil (IBS < 0,2), que ya tienen su entrada. Compra al cierre, stop a 2 ATR(14), salida en el primer cierre por
+     encima de la media de 5 días o a las 10 sesiones. Solo el US 500: 85 op., +0,145 R (2011–18 +0,150; 2019–26 +0,141), 76 % ganadoras;
+     binaria Sube a 5 sesiones 63,5 % (62,8 | 64,3). En el US Tech 100 y el Wall Street 30 no pasa los dos periodos. */
+  var PULL_SYMS = { OTC_SPC: 1 };
+  function pullEntries(d) {
+    var n = d.length, out = []; if (n < 210) return out;
+    var K = cols(d), C = K.c, rs = rsi(C, 2), ma = sma(C, 200), m5 = sma(C, 5), at = atr(K, 14);
+    for (var i = 201; i < n; i++) {
+      var rg = K.h[i] - K.l[i], ibs = rg > 0 ? (C[i] - K.l[i]) / rg : 0.5;
+      if (!(C[i] > ma[i] && at[i] > 0) || rs[i] < 10 || ibs < 0.2) continue;
+      var dn3 = C[i] < C[i - 1] && C[i - 1] < C[i - 2] && C[i - 2] < C[i - 3], cr = rs[i] + rs[i - 1] < 35; if (!dn3 && !cr) continue;
+      var E = C[i], risk = 2 * at[i], st = E - risk, ex = null, j = i + 1;
+      for (; j < n && j <= i + 10; j++) { if (d[j].l <= st) { ex = Math.min(d[j].o, st); break; } if (C[j] > m5[j] || j === i + 10) { ex = C[j]; break; } }
+      var x = { i: i, e: i, up: true, stop: st, lvl: 2 };
+      if (ex == null) { x.done = false; out.push(x); break; }
+      x.done = true; x.xi = j; x.R = (ex - E - (0.0004 + 0.00015 * (j - i)) * E) / risk; out.push(x); i = j;
+    }
+    return out;
+  }
+  /* Rotura de canal en el gráfico diario (Donchian; Clenow, «Following the Trend», 2013; estudio E72, 2011–2026, coste real por mercado):
+     cierre por encima del máximo de los 20 días anteriores → compra; por debajo del mínimo → venta. Stop inicial y trailing a 3 ATR(20) desde el
+     mejor cierre. Gana en cripto (solo compras: +0,76 R; las ventas ≈ 0), en oro (compras +0,48; 2011–18 +0,25, 2019–26 +0,70) y plata
+     (compras +0,26) y en petróleo (compras y ventas: +0,24; +0,23 | +0,25). Pierde en forex e índices. sides: 1 solo compras, 2 los dos lados. */
+  var CH_SIDES = { cripto: 1, metal: 1, energia: 2 };
+  function wilder(tr, n) { var out = new Float64Array(tr.length).fill(NaN), a = tr[0]; for (var i = 0; i < tr.length; i++) { a = i === 0 ? tr[0] : a + (tr[i] - a) / n; out[i] = a; } return out; }
+  function channelEntries(d, sides, com) {
+    var n = d.length, out = []; if (n < 60) return out;
+    var K = cols(d), C = K.c, H = K.h, L = K.l, O = K.o, tr = new Float64Array(n);
+    for (var q = 0; q < n; q++) tr[q] = q === 0 ? H[0] - L[0] : Math.max(H[q] - L[q], Math.abs(H[q] - C[q - 1]), Math.abs(L[q] - C[q - 1]));
+    var at = wilder(tr, 20), N = 20;
+    for (var i = N; i < n; i++) {
+      var hh = -Infinity, ll = Infinity; for (var q = i - N; q < i; q++) { if (H[q] > hh) hh = H[q]; if (L[q] < ll) ll = L[q]; }
+      var side = C[i] > hh ? 1 : (C[i] < ll && sides === 2 ? -1 : 0); if (!side || !(at[i] > 0) || i < 60) continue;   // 60 velas para que el ATR(20) no dependa de dónde empiezan las velas cargadas
+      var E = C[i], risk = 3 * at[i], st = E - side * risk, best = E, ex = null, j = i + 1, sti = i;
+      for (; j < n; j++) {
+        if (side === 1 ? L[j] <= st : H[j] >= st) { ex = side === 1 ? Math.min(O[j], st) : Math.max(O[j], st); break; }
+        if (side * (C[j] - best) > 0) { best = C[j]; var ns = best - side * 3 * at[j]; if (side * (ns - st) > 0) { st = ns; sti = j; } }
+      }
+      var x = { i: i, e: i, up: side === 1, stop: E - side * risk, st: st, sti: sti, lvl: 2, risk: risk };
+      if (ex == null) { x.done = false; out.push(x); break; }
+      x.done = true; x.xi = j; x.R = (side * (ex - E) - ((com || 0.0002) + 0.00005 * (j - i)) * E) / risk; out.push(x); i = j;
+    }
+    return out;
+  }
+  /* entradas dentro del movimiento largo: cada ola pequeña EN CONTRA que termina (giro confirmado del zigzag de la temporalidad baja)
+     da una entrada A FAVOR del tramo en curso de la temporalidad alta. En un movimiento bajista, el final de cada pequeña subida es una
+     venta; en uno alcista, el final de cada pequeña bajada es una compra. La flecha va en la vela del giro y sale al confirmarse (e).
+     cL/zL: velas y zigzag de la temporalidad baja; cH/zH, gL/gH: de la alta y sus duraciones en segundos. */
+  function waveEntries(cL, zL, cH, zH, gL, gH, from) {
+    var out = [], P = zL.piv, jH = -1, nH = cH.length;
+    for (var q = 2; q < P.length; q++) {
+      var p = P[q], e = p.c; if (from && e < from) continue;
+      var tEnd = cL[e].t + gL; while (jH + 1 < nH && cH[jH + 1].t + gH <= tEnd) jH++;
+      var m = longMove(cH, zH, jH); if (!m) continue;
+      var up = m.dir > 0; if (up === p.hi) continue;                 // en un tramo alcista solo cuentan los suelos (fin de una bajada pequeña)
+      var a = P[q - 1], b = P[q - 2], AL = zL.atr[a.i] || zL.atr[e];
+      var pull = Math.abs(a.p - p.p), imp = Math.abs(a.p - b.p), prevPull = q >= 3 ? Math.abs(P[q - 2].p - P[q - 3].p) : null;
+      var k = cL[p.i], body = up ? Math.min(k.o, k.c) - k.l : k.h - Math.max(k.o, k.c), rng = k.h - k.l;
+      out.push({
+        i: p.i, e: e, up: up, stop: p.p, entry: cL[e].c, lvl: 2, tf: m,
+        pullA: pull / AL, pullImp: imp > 0 ? pull / imp : null, pullPrev: prevPull ? pull / prevPull : null, durPrev: q >= 3 ? (p.i - a.i) / Math.max(1, P[q - 2].i - P[q - 3].i) : null,
+        retH: Math.abs(m.ext - m.start) > 0 ? (up ? m.ext - p.p : p.p - m.ext) / Math.abs(m.ext - m.start) : null, wick: rng > 0 ? body / rng : 0
+      });
+    }
+    return out;
+  }
+
+  /* roturas recientes de soportes y resistencias en las velas del gráfico: el precio venía del otro lado y cierra más allá del stop del plan
+     (pasar las zonas 2 y 3 es un barrido, no una rotura). El aviso se ve durante unas velas, más o menos según la temporalidad
+     (en 1 minuto, media hora; en 1 día, unos días). zones: [{ lo, hi, stop: distancia del stop }] */
+  var KEEP = { M1: 30, M3: 20, M5: 24, M15: 16, M30: 12, H1: 12, H4: 10, D1: 6 };
+  function breaks(c, zones, tf) {
+    var n = c ? c.length : 0, keep = KEEP[tf] || 12, out = []; if (n < 40 || !zones || !zones.length) return out;
+    var k = cols(n > 400 ? c.slice(n - 400) : c), off = n - k.n, a = atr(k, 14);
+    zones.forEach(function (z) {
+      if (!(z.strength >= CFG.minStrength)) return;
+      for (var i = k.n - 1; i >= Math.max(20, k.n - keep); i--) {
+        var A0 = a[i - 1] > 0 ? a[i - 1] : a[k.n - 1], buf = z.stop > 0 ? z.stop : 0.5 * A0, above = 0, below = 0;
+        for (var j = i - 20; j < i; j++) { if (k.c[j] > z.hi) above++; if (k.c[j] < z.lo) below++; }
+        if (k.c[i] < z.lo - buf && k.c[i - 1] >= z.lo - buf && above >= 3) { out.push({ i: i + off, sup: true, p: z.lo - buf }); break; }
+        if (k.c[i] > z.hi + buf && k.c[i - 1] <= z.hi + buf && below >= 3) { out.push({ i: i + off, sup: false, p: z.hi + buf }); break; }
+      }
+    });
+    return out.sort(function (p, q) { return q.i - p.i; }).slice(0, 2);
+  }
+
+  /* banda Umbral (17-11-2026; sustituye a la envolvente Nadaraya-Watson de LuxAlgo): centro en la media exponencial de 20 cierres y anchura
+     según el tamaño previsto de las velas, con la memoria de la volatilidad a corto, medio y largo plazo (rango verdadero suavizado con
+     vidas medias de 3, 24 y 120 velas). Solo con velas pasadas: no se repinta. C: cierres; k: velas (para el rango verdadero) o nada. */
+  function nwEnv(C, k, mult) {
+    mult = mult || 3;
+    var n = C.length, mid = ema(C, 20), up = new Float64Array(n), lo = new Float64Array(n), hl = [3, 24, 120], al = hl.map(function (h) { return 1 - Math.pow(2, -1 / h); }), e = [0, 0, 0], t;
+    for (t = 0; t < n; t++) {
+      var tr = k && k.h ? (t ? Math.max(k.h[t], C[t - 1]) - Math.min(k.l[t], C[t - 1]) : k.h[t] - k.l[t]) : (t ? Math.abs(C[t] - C[t - 1]) * 1.6 : 0);
+      for (var q = 0; q < 3; q++) e[q] = t ? al[q] * tr + (1 - al[q]) * e[q] : tr;
+      var f = 0.5 * e[0] + 0.3 * e[1] + 0.2 * e[2], m = mid[t] === mid[t] ? mid[t] : C[t];
+      up[t] = m + mult * f; lo[t] = m - mult * f;
+    }
+    return { mid: mid, up: up, lo: lo };
+  }
+
+  /* señales de entrada tras un estiramiento: el precio se aleja mucho de su media (fuera de la banda de Bollinger, RSI extremo),
+     marca un techo o un suelo y gira (una vela cierra más allá de la anterior sin hacer otro extremo). La flecha va en la vela del techo
+     o del suelo; la entrada cuenta desde la vela que lo confirma. Cada señal se comprueba con lo que hizo después: gana si llega a 1,5 ATR
+     a favor antes de pasar su techo o su suelo; lo medido en cada activo y temporalidad se guarda (mem) y se suma en las sesiones siguientes.
+     Prueba del 16 de noviembre de 2026 con 85 mercados en 1 hora: con exigencias más bajas acertaban el 51-52 % (sin ventaja) y elegir la
+     exigencia en cada activo no mejoraba fuera de la muestra; con esta, 55 % y algo de ventaja. Por eso se usa solo esta, y si en un
+     activo pierde claramente (15 señales o más y expectativa negativa) sus flechas no se dibujan.
+     Segunda prueba, más larga (7 meses en 1 hora y hasta 17 días en 5 minutos, 2.400 señales), con lo que propuso el análisis hecho con
+     ChatGPT: la señal acierta el 53-56 % y gana poco (+0,01 R en 1 hora, +0,05 R en 5 minutos); los índices son los que mejor responden
+     (+0,2 R) y las criptomonedas, las que peor. Fuera de su volatilidad normal (ATR de 14 velas por debajo de 0,7 o por encima de 1,8 veces
+     su mediana de las últimas 100) pierden en las dos temporalidades (−0,16 R y −0,05 R): esas no se dibujan. Los barridos de liquidez con
+     recuperación, los números redondos, la calidad del cierre y la tendencia de la misma temporalidad no mejoraban; la tendencia de una
+     temporalidad cuatro veces mayor mejoraba algo, sin bastante seguridad todavía. */
+  var SIGS = [[0, 70]];   // fuera de la banda Umbral + RSI 70/30 + fuera de Bollinger
+  /* lo que se sabe de antemano de cada familia (esa segunda prueba, sin las señales de volatilidad anormal): acierto y ganancia media por
+     señal en múltiplos del riesgo. Cada activo parte de lo de su familia como si ya llevase 20 señales con esos números y se va separando
+     con lo que mide él mismo (suavizado bayesiano): con pocas señales no presume ni se hunde por dos aciertos o dos fallos seguidos. */
+  var SIG_PRIOR = { forex: [0.544, 0.03], cripto: [0.546, -0.012], indice: [0.605, 0.143], metal: [0.543, 0.056], sint: [0.523, 0.035] }, SIG_P0 = [0.543, 0.036], SIG_K = 20;
+  function volRegime(at, i) { // ATR de ahora entre la mediana de ese ATR en las últimas 100 velas
+    if (i < 100 || !(at[i] > 0)) return 1;
+    var a = Array.prototype.slice.call(at, i - 99, i + 1).sort(function (x, y) { return x - y; }), med = (a[49] + a[50]) / 2;
+    return med > 0 ? at[i] / med : 1;
+  }
+  /* ¿Para qué producto sirve cada flecha? (estudio del 16 de noviembre de 2026, 85 mercados en 1 m, 5 m, 15 m, 1 h y 4 h, unas 23.000
+     entradas, revisado con ChatGPT). Binaria Sube/Baja con pago del 90 %: hace falta acertar más del 52,6 % al vencer solo para no perder;
+     a 1, 3 y 5 velas acertaban entre el 47 y el 51 % en todas las temporalidades. CFD con la comisión de Deriv: perdían más cuanto más
+     corta la temporalidad (−0,58 R en 1 m, −0,30 en 5 m, −0,19 en 15 m, −0,10 en 1 h y −0,04 en 4 h). Esperar una orden limitada más
+     cerca del extremo empeoraba (se llenan sobre todo las que fallan), y las entradas por cambio de tendencia tampoco tenían ventaja.
+     Por eso la flecha solo lleva «Binaria» o «CFD» cuando lo medido en ese activo y temporalidad lo demuestra, partiendo de esos números:
+     binaria si acierta al menos un 58 % y su límite inferior (95 %) pasa del 52,6 %, con 100 señales o más; CFD si gana al menos
+     +0,15 R por operación ya con la comisión y su límite inferior es positivo, con 60 o más. */
+  var COM = { forex: 0.0002, metal: 0.0002, indice: 0.0002, cripto: 0.0008, sint: 0.0003 }, BIN_EXP = [1, 3, 5], BIN_P0 = 0.49, BIN_K = 60;
+  var CFD_R0 = { M1: -0.55, M3: -0.4, M5: -0.3, M15: -0.19, M30: -0.15, H1: -0.1, H4: -0.04, D1: -0.02 }, CFD_K = 40;
+  function wilsonLo(w, n) { if (!n) return 0; var p = w / n, z = 1.645; return (p + z * z / (2 * n) - z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n); }
+  function modesOf(mem, tf) { // lo que demuestra lo medido: { b: velas de la binaria (0 = no), c: true si sirve para CFD, bin: [[p, n]…], cfd: [R, n] }
+    var out = { b: 0, c: false, bin: [], cfd: null }; if (!mem || !mem.b) return out;
+    var best = 0;
+    BIN_EXP.forEach(function (e, q) {
+      var n = mem.b[q][0], w = mem.b[q][1], p = (BIN_K * BIN_P0 + w) / (BIN_K + n); out.bin.push([p, n]);
+      if (n >= 100 && p >= 0.58 && wilsonLo(w, n) > 0.5263 && p > best) { best = p; out.b = e; }
+    });
+    var cn = mem.c[0], cs = mem.c[1], cq = mem.c[2], r0 = CFD_R0[tf] != null ? CFD_R0[tf] : -0.1, mean = cn ? cs / cn : 0, post = (CFD_K * r0 + cs) / (CFD_K + cn);
+    var se = cn > 1 ? Math.sqrt(Math.max(0, cq / cn - mean * mean) / (cn - 1)) : 1;
+    out.cfd = [post, cn]; out.c = cn >= 60 && post >= 0.15 && mean - 1.645 * se > 0;
+    return out;
+  }
+  function stretchSignals(c, mem, group, tf) {
+    var n = c ? c.length : 0, res = { list: [], stats: null, changed: false }; if (n < 80) return res;
+    var k = cols(c), C = k.c, at = atr(k, 14), r = rsi(C, 14), m = sma(C, 20), sd = new Float64Array(n), env = nwEnv(C, k), last = n - 1, i, j;
+    for (i = 19; i < n; i++) { var v = 0; for (j = i - 19; j <= i; j++) v += (C[j] - m[i]) * (C[j] - m[i]); sd[i] = Math.sqrt(v / 20); }
+    function find(set) {
+      var out = [], prev = -99;
+      for (var i = 25; i < last; i++) {
+        var A0 = at[i]; if (!(A0 > 0)) continue;
+        if (i < 60) continue;
+        var hiS = k.h[i] >= env.up[i] && k.h[i] >= m[i] + 2 * sd[i] && r[i] >= set[1];                    // fuera de la banda Umbral y de Bollinger, RSI en extremo
+        var loS = k.l[i] <= env.lo[i] && k.l[i] <= m[i] - 2 * sd[i] && r[i] <= 100 - set[1];
+        if (!hiS && !loS) continue;
+        var up = loS, ext = true;
+        for (var j = Math.max(0, i - 20); j < i; j++) if (up ? k.l[j] <= k.l[i] : k.h[j] >= k.h[i]) { ext = false; break; }
+        if (!ext) continue;
+        for (var q = i + 1; q <= Math.min(i + 3, last - 1); q++) {
+          if (up ? k.l[q] < k.l[i] : k.h[q] > k.h[i]) break;                                            // hizo otro extremo: aún no es el techo o el suelo
+          if (up ? C[q] > k.h[q - 1] : C[q] < k.l[q - 1]) { if (i - prev > 5) { out.push({ i: i, e: q, up: up }); prev = i; } break; }
+        }
+      }
+      return out.filter(function (s) { var v = volRegime(at, s.e); return v >= 0.7 && v <= 1.8; });   // con la volatilidad fuera de lo normal (noticias, sustos), no
+    }
+    function judge(s) { // lo ganado en múltiplos del riesgo (1,5 ATR a favor) o −1 si pasa el techo o el suelo; 0 si en 40 velas no pasa nada
+      var entry = C[s.e], A0 = at[s.e], stop = s.up ? k.l[s.i] - 0.15 * A0 : k.h[s.i] + 0.15 * A0, risk = Math.abs(entry - stop), tp = entry + (s.up ? 1.5 : -1.5) * A0;
+      if (!(risk > 0)) return null;
+      s.bin = BIN_EXP.map(function (e) { var z = s.e + e; return z < last ? ((C[z] - entry) * (s.up ? 1 : -1) > 0 ? 1 : 0) : null; });   // binaria: ¿a favor al vencer?
+      var cost = (COM[group] || 0.0003) * entry / risk, out = null;                                                                       // CFD: con la comisión de Deriv
+      for (var j = s.e + 1; j < last && j <= s.e + 40; j++) {
+        if (s.up ? k.l[j] <= stop : k.h[j] >= stop) { out = -1; break; }
+        if (s.up ? k.h[j] >= tp : k.l[j] <= tp) { out = 1.5 * A0 / risk; break; }
+      }
+      if (out === null) { if (s.e + 40 >= last) return null; out = (C[s.e + 40] - entry) * (s.up ? 1 : -1) / risk; s.rn = out - cost; return 0; }
+      s.rn = out - cost; return out;
+    }
+    var lists = SIGS.map(find), tNew = mem ? mem.t : 0, best = null;
+    lists.forEach(function (list, si) {
+      var loc = [0, 0, 0];
+      list.forEach(function (s) {
+        var R = judge(s); s.r = R; if (R == null) return;
+        loc[0]++; if (R > 0) loc[1]++; loc[2] += R;
+        if (mem && k.t[s.e] > mem.t) {
+          mem.s[si][0]++; if (R > 0) mem.s[si][1]++; mem.s[si][2] += R; if (k.t[s.e] > tNew) tNew = k.t[s.e]; res.changed = true;
+          if (mem.b && s.bin) s.bin.forEach(function (b, q) { if (b != null) { mem.b[q][0]++; mem.b[q][1] += b; } });
+          if (mem.c && s.rn != null) { mem.c[0]++; mem.c[1] += s.rn; mem.c[2] += s.rn * s.rn; }
+        }
+      });
+      var tot = mem && mem.s[si][0] >= loc[0] ? mem.s[si] : loc, N = tot[0], pr = SIG_PRIOR[group] || SIG_P0;
+      var exp = (SIG_K * pr[1] + tot[2]) / (SIG_K + N), rate = (SIG_K * pr[0] + tot[1]) / (SIG_K + N);       // con pocas señales, pesa más lo de su familia
+      if (!best || exp > best.exp) best = { set: si, list: list, n: N, win: tot[1], rate: rate, exp: exp };
+    });
+    if (mem && tNew > mem.t) mem.t = tNew;
+    if (best && best.n >= 15 && best.exp < -0.1) res.stats = { n: best.n, rate: best.rate, exp: best.exp, weak: true };
+    else if (best) { res.list = best.list; res.stats = best; }
+    res.modes = modesOf(mem, tf); if (res.stats) res.stats.modes = res.modes;
+    return res;
+  }
+
+  /* análisis técnico automático de las velas del gráfico: tendencia por su estructura (máximos y mínimos), la directriz que la sostiene
+     y su canal, los soportes y las resistencias más claros a cada lado del precio y qué vigilar. Reglas objetivas: una directriz une dos
+     giros de la tendencia y ninguna vela cierra claramente al otro lado entre ellos y hasta ahora. */
+  function techAnalysis(c) {
+    var n = c ? c.length : 0; if (n < 60) return null;
+    var use = n > 400 ? c.slice(n - 400) : c, off = n - use.length, k = cols(use), a = atr(k, 14), A0 = a[k.n - 1], price = k.c[k.n - 1];
+    if (!(A0 > 0)) return null;
+    var pv = findPivots(k, 5, a, 'X', 1.0), H = pv.filter(function (p) { return p.type === 'H'; }), L = pv.filter(function (p) { return p.type === 'L'; });
+    var h1 = H[H.length - 2], h2 = H[H.length - 1], l1 = L[L.length - 2], l2 = L[L.length - 1], trend = 0;
+    if (h1 && h2 && l1 && l2) { if (h2.price > h1.price && l2.price > l1.price) trend = 1; else if (h2.price < h1.price && l2.price < l1.price) trend = -1; }
+    if (trend === 1 && price < l2.price - 0.3 * A0) trend = 0;                                           // perdió el último mínimo: ya no es alcista
+    if (trend === -1 && price > h2.price + 0.3 * A0) trend = 0;
+    function lineFrom(ps, up) {
+      for (var b = ps.length - 1; b >= 1; b--) for (var q = b - 1; q >= Math.max(0, b - 4); q--) {
+        var p1 = ps[q], p2 = ps[b]; if (up ? p2.price <= p1.price : p2.price >= p1.price) continue;
+        var sl = (p2.price - p1.price) / (p2.i - p1.i), ok = true;
+        for (var j = p1.i; j < k.n; j++) { var y = p1.price + sl * (j - p1.i); if (up ? k.c[j] < y - 0.25 * A0 : k.c[j] > y + 0.25 * A0) { ok = false; break; } }
+        if (ok) return { i1: p1.i + off, p1: p1.price, i2: p2.i + off, p2: p2.price, slope: sl, up: up, now: p1.price + sl * (k.n - 1 - p1.i) };
+      }
+      return null;
+    }
+    var line = trend > 0 ? lineFrom(L, true) : trend < 0 ? lineFrom(H, false) : null, chan = null;
+    if (line) { var best = 0; (line.up ? H : L).forEach(function (p) { if (p.i + off <= line.i1) return; var y = line.p1 + line.slope * (p.i + off - line.i1), d = line.up ? p.price - y : y - p.price; if (d > best) best = d; }); if (best > 0.5 * A0) chan = line.up ? best : -best; }
+    var ll = localLevels(c), near = function (list, below) { return list.filter(function (z) { return below ? z.hi < price : z.lo > price; }).sort(function (x, y) { return below ? y.hi - x.hi : x.lo - y.lo; }); };
+    var sup = near(ll.zones, true).slice(0, 2), res = near(ll.zones, false).slice(0, 2);
+    var tags = []; [h1, h2, l1, l2].forEach(function (p, q) { if (!p) return; var prevP = q === 1 ? h1 : q === 3 ? l1 : null; if (!prevP) return; tags.push({ i: p.i + off, p: p.price, hi: p.type === 'H', t: p.type === 'H' ? (p.price > prevP.price ? 'HH' : 'LH') : (p.price > prevP.price ? 'HL' : 'LL') }); });
+    return { trend: trend, line: line, chan: chan, sup: sup, res: res, tags: tags, price: price, atr: A0, range: !trend && h2 && l2 ? { hi: Math.max(h2.price, h1 ? h1.price : -Infinity), lo: Math.min(l2.price, l1 ? l1.price : Infinity) } : null };
+  }
+
+  /* SuperTrend (ATR de 10 velas, 3 veces): la línea de tendencia que cambia de lado cuando una vela cierra al otro lado.
+     dir: 1 alcista, −1 bajista; line: el nivel de la línea en cada vela. */
+  function superTrend(k, n, mult) {
+    n = n || 10; mult = mult || 3;
+    var N = k.n, a = atr(k, n), dir = new Int8Array(N), line = new Float64Array(N).fill(NaN), fu = NaN, fl = NaN, d = 0;
+    for (var i = 0; i < N; i++) {
+      if (!(a[i] > 0)) continue;
+      var hl = (k.h[i] + k.l[i]) / 2, bu = hl + mult * a[i], bl = hl - mult * a[i], pc = i ? k.c[i - 1] : k.c[i];
+      fu = fu !== fu || bu < fu || pc > fu ? bu : fu;                // banda de arriba: solo baja, salvo que el precio la haya superado
+      fl = fl !== fl || bl > fl || pc < fl ? bl : fl;                // banda de abajo: solo sube
+      if (!d) d = k.c[i] >= hl ? 1 : -1;
+      else if (d === 1 && k.c[i] < fl) d = -1;
+      else if (d === -1 && k.c[i] > fu) d = 1;
+      dir[i] = d; line[i] = d === 1 ? fl : fu;
+    }
+    return { dir: dir, line: line };
+  }
+  /* tendencia de unas velas con sus velas cerradas: sentido, si acaba de cambiar (en las 3 últimas) y desde cuándo (hora del cambio) */
+  function trendState(c, gran) {
+    var n = c ? c.length : 0; if (n < 30) return null;
+    var k = cols(c.slice(0, n - 1)), st = superTrend(k), m = k.n, d = st.dir[m - 1]; if (!d) return null;
+    var j = m - 1; while (j > 0 && st.dir[j - 1] === d) j--;
+    return { dir: d, fresh: m - 1 - j < 3, since: k.t[j], start: j > 0 };   // start: el cambio está dentro de las velas que hay
+  }
+  /* niveles clave de las plataformas, con las velas diarias (UTC): máximo, mínimo y cierre del día anterior, apertura del día, máximo,
+     mínimo y cierre de la semana anterior, apertura semanal, máximo y mínimo del lunes, máximo y mínimo del mes anterior y apertura
+     mensual. En los mercados con sesión (forex, materias primas, índices) la semana empieza el domingo: la apertura del domingo por la
+     noche ya es la semana nueva, y el domingo no cuenta como «día anterior». */
+  function keyLevels(d1, opt) {
+    opt = opt || {}; var n = d1 ? d1.length : 0, out = []; if (n < 3) return out;
+    var DAY = 86400, now = opt.now || Date.now() / 1000, today = Math.floor(now / DAY) * DAY, ses = !!opt.session, i, k;
+    function add(p, key) { if (p > 0 && isFinite(p)) out.push({ p: p, k: key }); }
+    function dow(t) { return new Date(t * 1000).getUTCDay(); }
+    function wk(t) { var d = dow(t), off = ses ? d : (d + 6) % 7; return Math.floor(t / DAY) * DAY - off * DAY; }
+    function mo(t) { var d = new Date(t * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; }
+    var cur = d1[n - 1].t >= today ? d1[n - 1] : null, pi = cur ? n - 2 : n - 1;
+    while (pi > 0 && ses && (dow(d1[pi].t) === 0 || dow(d1[pi].t) === 6)) pi--;
+    var pd = d1[pi]; if (pd) { add(pd.h, 'dh'); add(pd.l, 'dl'); add(pd.c, 'dc'); }
+    if (cur) add(cur.o, 'do');
+    var w0 = wk(now), w1 = w0 - 7 * DAY, ph = -Infinity, pl = Infinity, pcl = null, wo = null, mon = null;
+    for (i = 0; i < n; i++) { k = d1[i]; var w = wk(k.t); if (w === w1) { ph = Math.max(ph, k.h); pl = Math.min(pl, k.l); pcl = k.c; } if (w === w0) { if (wo == null) wo = k.o; if (dow(k.t) === 1) mon = k; } }
+    if (pcl != null) { add(ph, 'wh'); add(pl, 'wl'); add(pcl, 'wc'); }
+    if (wo != null) add(wo, 'wo');
+    if (mon && mon.t + DAY <= now) { add(mon.h, 'lh'); add(mon.l, 'll'); }              // el lunes ya terminó
+    var m0 = mo(now), m1 = mo(m0 - DAY), mh = -Infinity, ml = Infinity, mop = null, mn = 0;
+    for (i = 0; i < n; i++) { k = d1[i]; var mm = mo(k.t); if (mm === m1) { mh = Math.max(mh, k.h); ml = Math.min(ml, k.l); mn++; } if (mm === m0 && mop == null) mop = k.o; }
+    if (mn) { add(mh, 'mh'); add(ml, 'ml'); }
+    if (mop != null) add(mop, 'mo');
+    return out;
+  }
+  function roundStep(price) { // separación de los números redondos: la de 1, 2 o 5 por potencia de diez más cercana al 0,5 % del precio
+    if (!(price > 0)) return 0;
+    var t = price * 0.005, e = Math.pow(10, Math.floor(Math.log(t) / Math.LN10)), best = e, bd = Infinity;
+    [1, 2, 5, 10].forEach(function (f) { var d = Math.abs(Math.log(t / (f * e))); if (d < bd) { bd = d; best = f * e; } });
+    return best;
+  }
+
+  // Velas Heikin Ashi: cierre = media de la vela; apertura = punto medio de la Heikin Ashi anterior; máximo y mínimo incluyen ambas
+  function heikinNext(p, k) {
+    var cl = (k.o + k.h + k.l + k.c) / 4, op = p ? (p.o + p.c) / 2 : (k.o + k.c) / 2;
+    return { t: k.t, o: op, h: Math.max(k.h, op, cl), l: Math.min(k.l, op, cl), c: cl };
+  }
+  function heikin(c) { var out = new Array(c.length), p = null; for (var i = 0; i < c.length; i++) p = out[i] = heikinNext(p, c[i]); return out; }
+
+  U.algo = {
+    CFG: CFG, GRAN: GRAN, TF_LABEL: TF_LABEL, TF_SHORT: TF_SHORT, STATE_TEXT: STATE_TEXT, floors: floors, CONF_TF: CONF_TF, zigzag: zigzag, zzLegs: zzLegs, longMove: longMove, waveEntries: waveEntries, instZoneList: instZoneList, waveTarget: waveTarget, WAVE_TF: WAVE_TF, waveDir: waveDir, waveRide: waveRide, COM: COM, DIP_SYMS: DIP_SYMS, dipEntries: dipEntries, IBS_SYMS: IBS_SYMS, ibsEntries: ibsEntries, PULL_SYMS: PULL_SYMS, pullEntries: pullEntries, CH_SIDES: CH_SIDES, channelEntries: channelEntries, nadaraya: nadaraya, fibEntries: fibEntries, FIB_Z: FIB_Z, htfZoneList: htfZoneList, tiroEntries: tiroEntries, waveAdds: waveAdds, waveSeq: waveSeq,
+    cols: cols, aggregate: aggregate, sma: sma, ema: ema, rsi: rsi, atr: atr, stochK: stochK, macdHist: macdHist, bbPctB: bbPctB, cci: cci, willr: willr, adx: adx,
+    findPivots: findPivots, structure: structure, localLevels: localLevels, readout: readout, qualify: qualify, sweepProfile: sweepProfile, sweepDepths: sweepDepths, ladderDepths: ladderDepths, buildZones: buildZones, indicatorPanel: indicatorPanel,
+    sideOf: sideOf, reversalMarks: reversalMarks, flows: flows, learnNew: learnNew, learnP: learnP, learnTrain: learnTrain, learnTop: learnTop, learnSkill: learnSkill, evalSetup: evalSetup, analyze: analyze, refresh: refresh, summary: summary, fmt: fmt, clamp: clamp, heikin: heikin, heikinNext: heikinNext, turns: turns, breaks: breaks, stretchSignals: stretchSignals, modesOf: modesOf, BIN_EXP: BIN_EXP, nwEnv: nwEnv, techAnalysis: techAnalysis, superTrend: superTrend, trendState: trendState, keyLevels: keyLevels, roundStep: roundStep
+  };
+})(typeof window !== 'undefined' ? (window.U = window.U || {}) : (globalThis.U = globalThis.U || {}));
+</script>
+<script>/* Pantalla del robot de Umbral: cuenta simulada con dinero ficticio, en directo.
+   Calcula en el navegador, con velas públicas (Binance, Deriv, Hyperliquid), las mismas entradas que las flechas de tendencia de la web
+   y que el robot que corre en GitHub (robot.js): 30 min, 1 h y 4 h, filtro de la media de 200 velas, ampliaciones a +0,5 y +1 vez el
+   riesgo con el stop común donde están activas, y salida por stop o por cambio de tendencia. No envía nada a ningún sitio. */
+(function () {
+  'use strict';
+  var W = typeof window !== 'undefined' ? window : globalThis;
+  var A = W.U.algo, G = A.GRAN, HTF = A.WAVE_TF;
+  var START = Date.UTC(2026, 10, 17, 21, 30) / 1000;   // 17-11-2026, 16:30 de Bogotá: cuando se encendió el robot
+  var H14 = { H1: 1, H4: 1 }, ALL = { M30: 1, H1: 1, H4: 1 };
+  var MK = [
+    { code: 'BTC', nombre: 'Bitcoin', src: 'bn', sym: 'BTCUSDT', g: 'cripto', com: 0.0007, tfs: ['M30', 'H1', 'H4'], adds: H14 },
+    { code: 'ETH', nombre: 'Ethereum', src: 'bn', sym: 'ETHUSDT', g: 'cripto', com: 0.001166, tfs: ['M30', 'H1', 'H4'], adds: ALL },
+    { code: 'SOL', nombre: 'Solana', src: 'bn', sym: 'SOLUSDT', g: 'cripto', com: 0.001, tfs: ['H1', 'H4'], adds: H14 },
+    { code: 'XRP', nombre: 'XRP', src: 'bn', sym: 'XRPUSDT', g: 'cripto', com: 0.001, tfs: ['H1', 'H4'], adds: H14 },
+    { code: 'BNB', nombre: 'BNB', src: 'bn', sym: 'BNBUSDT', g: 'cripto', com: 0.001, tfs: ['M30', 'H1', 'H4'], adds: H14 },
+    { code: 'DOGE', nombre: 'Dogecoin', src: 'bn', sym: 'DOGEUSDT', g: 'cripto', com: 0.001, tfs: ['H1', 'H4'], adds: {} },
+    { code: 'ADA', nombre: 'Cardano', src: 'bn', sym: 'ADAUSDT', g: 'cripto', com: 0.001, tfs: ['M30', 'H1', 'H4'], adds: ALL },
+    { code: 'LTC', nombre: 'Litecoin', src: 'bn', sym: 'LTCUSDT', g: 'cripto', com: 0.001, tfs: ['H1', 'H4'], adds: {} },
+    { code: 'AVAX', nombre: 'Avalanche', src: 'bn', sym: 'AVAXUSDT', g: 'cripto', com: 0.001, tfs: ['H1', 'H4'], adds: H14 },
+    { code: 'LINK', nombre: 'Chainlink', src: 'bn', sym: 'LINKUSDT', g: 'cripto', com: 0.001, tfs: ['H1', 'H4'], adds: H14 },
+    { code: 'Oro', nombre: 'Oro', src: 'deriv', sym: 'frxXAUUSD', g: 'metal', com: 0.000179, tfs: ['M30', 'H1', 'H4'], adds: ALL },
+    { code: 'Plata', nombre: 'Plata', src: 'deriv', sym: 'frxXAGUSD', g: 'metal', com: 0.000975, tfs: ['H4'], adds: { H4: 1 } },
+    { code: 'WTI', nombre: 'Petróleo WTI', src: 'hl', sym: 'CL', g: 'energia', com: 0.0005, tfs: ['M30', 'H1', 'H4'], adds: {} },
+    { code: 'Brent', nombre: 'Petróleo Brent', src: 'hl', sym: 'BRENTOIL', g: 'energia', com: 0.0005, tfs: ['M30', 'H1', 'H4'], adds: { H4: 1 } }
+  ];
+  var CAP = { cripto: 3, metal: 2, energia: 2 };
+  function need(m) { var s = {}; m.tfs.forEach(function (t) { s[t] = 1; s[HTF[t]] = 1; }); s.D1 = 1; s.H4 = 1; return Object.keys(s); }
+  function nMax(tf) { return tf === 'D1' ? 400 : 1000; }
+
+  /* ---------- el cálculo (igual que robot.js), sin pantalla ---------- */
+  // datos[código][temporalidad] = velas (la última puede estar abierta). Devuelve todas las operaciones con entrada desde T0.
+  function calcula(datos, NOW, T0) {
+    var ops = [], avisos = [], precio = {};
+    MK.forEach(function (m) {
+      var d = datos[m.code]; if (!d) { avisos.push(m.nombre + ': sin datos'); return; }
+      var closed = function (tf) { return (d[tf] || []).filter(function (k) { return k.t + G[tf] <= NOW; }); };
+      var px = null; ['M30', 'H1', 'H4', 'D1'].some(function (tf) { var a = d[tf]; if (a && a.length) { px = a[a.length - 1].c; return true; } return false; });
+      precio[m.code] = px;
+      var zl = []; [['D1', 86400], ['H4', 14400]].forEach(function (p) { var c = closed(p[0]); if (c.length >= 40) A.htfZoneList(c, p[1]).forEach(function (z) { z.tf = p[0]; zl.push(z); }); });
+      zl.sort(function (a, b) { return a.t0 - b.t0; });
+      m.tfs.forEach(function (tf) {
+        var g = G[tf], htf = HTF[tf], gH = G[htf], cc = closed(tf), cH = closed(htf);
+        if (cc.length < 300 || cH.length < 30) { avisos.push(m.nombre + ' ' + TFN[tf] + ': todavía pocas velas'); return; }
+        var zH = A.zigzag(cH, 3), zL = A.zigzag(cc, 3), hd = A.waveDir(cc, g, cH, zH, gH), K = A.cols(cc), sm = A.sma(K.c, 200), at = A.atr(K, 14);
+        A.waveEntries(cc, zL, cH, zH, g, gH).forEach(function (x) {
+          var te = cc[x.e].t + g; if (te < T0) return;
+          var mv = sm[x.e], a = at[x.e]; if (!(mv === mv) || !(a > 0)) return;
+          var sg = x.up ? 1 : -1, E = cc[x.e].c, s = sg * (E - mv) / a; if (s < -3 || (tf !== 'M30' && s >= 8)) return;   // filtro E92
+          var r0 = Math.abs(E - x.stop); if (!(r0 > 0)) return;
+          var tg = A.waveTarget(zl, te, E, x.up, x.tf ? x.tf.ext : null, r0); if (tg) x.beAt = tg.p;   // stop a la entrada en el objetivo (E55)
+          var ride = null, adds = [];
+          if (m.adds[tf]) { var sq = A.waveSeq(cc, zL, hd, x, m.com, 0.5, 2); if (sq) { ride = sq.ride; adds = sq.adds; } } else ride = A.waveRide(cc, zL, hd, x, m.com);
+          if (!ride) return;
+          ops.push({
+            key: m.code + '|' + tf + '|' + te + '|' + (x.up ? 'c' : 'v'), m: m.code, nombre: m.nombre, g: m.g, tf: tf, up: x.up, te: te, E: E, stop0: x.stop, r0: r0, com: m.com,
+            adds: adds.map(function (q) { return { n: q.m, ta: cc[q.i].t + g, lv: q.px, st: q.stop, R: q.R }; }),
+            done: !!ride.done, tx: ride.done ? cc[ride.xi].t + g : null, ex: ride.ex, stop: ride.stop, R: ride.R
+          });
+        });
+      });
+    });
+    return { ops: ops, avisos: avisos, precio: precio };
+  }
+
+  // lo que va ganando o perdiendo una operación abierta, en veces lo arriesgado, al precio p (si ya tocó el stop, al stop)
+  function rAbierta(o, p) {
+    var sg = o.up ? 1 : -1; p = o.up ? Math.max(p, o.stop) : Math.min(p, o.stop);
+    var R = (p - o.E) * sg / o.r0 - o.com * o.E / o.r0;
+    o.adds.forEach(function (q) { var rk = (q.lv - q.st) * sg; if (rk > 0) R += (p - q.lv) * sg / rk - o.com * q.lv / rk; });
+    return R;
+  }
+
+  // la cuenta: saldo inicial, cada entrada arriesga 'riesgo' del saldo de ese momento (y cada ampliación lo mismo), con tope por grupo
+  function cuenta(ops, T0, saldo0, riesgo, precio, NOW) {
+    var evs = [];
+    ops.forEach(function (o0) { if (o0.te < T0) return; var o = Object.assign({}, o0); evs.push([o.te, 1, o]); if (o.done) evs.push([o.tx, 0, o]); });
+    evs.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });   // a la misma hora, primero se cierra y luego se abre
+    var bal = saldo0, rk = { cripto: 0, metal: 0, energia: 0 }, abiertas = [], cerradas = [], sinHueco = 0, curva = [{ t: T0, v: saldo0 }];
+    evs.forEach(function (e) {
+      var o = e[2];
+      if (e[1] === 1) {
+        var r = Math.min(riesgo, CAP[o.g] * riesgo - rk[o.g]); if (r <= riesgo * 1e-6) { sinHueco++; return; }
+        o.r = r; o.usd = r * bal; rk[o.g] += r; abiertas.push(o);
+      } else {
+        if (!o.usd) return; rk[o.g] -= o.r; abiertas.splice(abiertas.indexOf(o), 1);
+        o.Rtot = o.R + o.adds.reduce(function (a, q) { return a + q.R; }, 0); o.pl = o.usd * o.Rtot; bal += o.pl; cerradas.push(o);
+        curva.push({ t: o.tx, v: bal, o: o });
+      }
+    });
+    var abierto = 0;
+    abiertas.forEach(function (o) { var p = precio[o.m]; o.Rnow = p == null ? 0 : rAbierta(o, p); o.px = p; o.pl = o.usd * o.Rnow; abierto += o.pl; });
+    return { saldo: bal, patrimonio: bal + abierto, abierto: abierto, abiertas: abiertas, cerradas: cerradas, sinHueco: sinHueco, curva: curva, NOW: NOW };
+  }
+
+  var TFN = { M30: '30 min', H1: '1 hora', H4: '4 horas', D1: '1 día' };
+  W.UMB = { calcula: calcula, cuenta: cuenta, rAbierta: rAbierta, MK: MK, START: START, need: need, nMax: nMax, TFN: TFN };
+  if (typeof document === 'undefined') return;
+
+  /* ---------- los datos ---------- */
+  var IV = { M30: '30m', H1: '1h', H4: '4h', D1: '1d' };
+  function getJSON(url, opt) {
+    var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = ctl ? setTimeout(function () { ctl.abort(); }, 20000) : 0;
+    return fetch(url, Object.assign({ cache: 'no-store' }, opt || {}, ctl ? { signal: ctl.signal } : {})).then(function (r) {
+      clearTimeout(tm); if (!r.ok) throw new Error('respuesta ' + r.status); return r.json();
+    }, function (e) { clearTimeout(tm); throw new Error(e && e.name === 'AbortError' ? 'no responde' : 'sin conexión'); });
+  }
+  function bn(sym, tf, n) {
+    return getJSON('https://data-api.binance.vision/api/v3/klines?symbol=' + sym + '&interval=' + IV[tf] + '&limit=' + n).then(function (a) {
+      return a.map(function (k) { return { t: Math.floor(k[0] / 1000), o: +k[1], h: +k[2], l: +k[3], c: +k[4] }; });
+    });
+  }
+  function hl(coin, tf, n) {
+    var end = Date.now(), start = end - (n + 2) * G[tf] * 1000;
+    return getJSON('https://api.hyperliquid.xyz/info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'candleSnapshot', req: { coin: 'xyz:' + coin, interval: IV[tf], startTime: start, endTime: end } }) }).then(function (a) {
+      return (a || []).map(function (k) { return { t: Math.floor(k.t / 1000), o: +k.o, h: +k.h, l: +k.l, c: +k.c }; }).filter(function (k) { return k.o > 0 && k.c > 0; }).slice(-n);
+    });
+  }
+  function deriv(reqs) {   // una conexión para todas las velas de Deriv
+    return new Promise(function (res) {
+      var out = {}, pend = {}, left = reqs.length, id = 0, ws, done = false;
+      function fin() { if (done) return; done = true; try { ws.close(); } catch (e) { } res(out); }
+      if (!left) return res(out);
+      var timer = setTimeout(fin, 30000);
+      try { ws = new WebSocket('wss://api.derivws.com/trading/v1/options/ws/public'); } catch (e) { clearTimeout(timer); out.error = 'sin conexión'; return res(out); }
+      ws.onopen = function () { reqs.forEach(function (r) { var rid = ++id; pend[rid] = r; ws.send(JSON.stringify({ ticks_history: r.sym, end: 'latest', count: r.n, style: 'candles', granularity: G[r.tf], req_id: rid })); }); };
+      ws.onmessage = function (ev) {
+        var d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+        var r = pend[d.req_id]; if (!r) return; delete pend[d.req_id]; left--;
+        if (d.candles && !d.error) { var c = d.candles.map(function (k) { return { t: +k.epoch, o: +k.open, h: +k.high, l: +k.low, c: +k.close }; }); if (c.length && c[0].t % G[r.tf] !== 0) c.shift(); out[r.sym + '|' + r.tf] = c; }
+        if (!left) { clearTimeout(timer); fin(); }
+      };
+      ws.onerror = function () { out.error = 'sin conexión'; clearTimeout(timer); fin(); };
+    });
+  }
+  // une velas nuevas a las que ya hay; si falta un tramo, devuelve null para bajarlas enteras
+  function une(old, nu, tf) {
+    if (!old || !old.length) return null; if (!nu.length) return old;
+    var out = old.slice(), g = G[tf];
+    if (nu[0].t > out[out.length - 1].t + g) return null;
+    nu.forEach(function (k) { var last = out[out.length - 1]; if (k.t === last.t) out[out.length - 1] = k; else if (k.t > last.t) out.push(k); });
+    return out.slice(-nMax(tf));
+  }
+
+  var datos = {}, ultimaCompleta = 0;
+  function cargar() {
+    var completa = Date.now() - ultimaCompleta > 30 * 60 * 1000, avisos = [], trabajos = [];
+    MK.forEach(function (m) {
+      datos[m.code] = datos[m.code] || {};
+      if (m.src === 'deriv') return;
+      need(m).forEach(function (tf) {
+        var cur = datos[m.code][tf], poco = !completa && cur && cur.length, n = poco ? 3 : nMax(tf);
+        var baja = function (k) { return m.src === 'bn' ? bn(m.sym, tf, k) : hl(m.sym, tf, k); };
+        trabajos.push(baja(n).then(function (nu) {
+          var u = poco ? une(cur, nu, tf) : nu;
+          return u ? u : baja(nMax(tf));
+        }).then(function (u) { datos[m.code][tf] = u; }, function (e) { avisos.push(m.nombre + ' (' + TFN[tf] + '): ' + e.message); }));
+      });
+    });
+    var dr = [];
+    MK.filter(function (m) { return m.src === 'deriv'; }).forEach(function (m) {
+      need(m).forEach(function (tf) { var cur = datos[m.code][tf]; dr.push({ code: m.code, nombre: m.nombre, sym: m.sym, tf: tf, n: !completa && cur && cur.length ? 3 : nMax(tf) }); });
+    });
+    trabajos.push(deriv(dr).then(function (out) {
+      var falta = [];
+      dr.forEach(function (r) {
+        var c = out[r.sym + '|' + r.tf]; if (!c) { avisos.push(r.nombre + ' (' + TFN[r.tf] + '): ' + (out.error || 'sin respuesta')); return; }
+        if (r.n === nMax(r.tf)) datos[r.code][r.tf] = c;
+        else { var u = une(datos[r.code][r.tf], c, r.tf); if (u) datos[r.code][r.tf] = u; else falta.push(Object.assign({}, r, { n: nMax(r.tf) })); }
+      });
+      if (falta.length) return deriv(falta).then(function (o2) { falta.forEach(function (r) { var c = o2[r.sym + '|' + r.tf]; if (c) datos[r.code][r.tf] = c; }); });
+    }));
+    return Promise.all(trabajos).then(function () { if (completa) ultimaCompleta = Date.now(); return avisos; });
+  }
+
+  /* ---------- la pantalla ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var cfg = { desde: 'vivo', riesgo: 0.002 }, SALDO0 = 10000, ultimo = null, avisosDatos = [], cargando = false, errorTotal = null;
+  try { var sv = JSON.parse(localStorage.getItem('umbral-robot-panel') || 'null'); if (sv && sv.desde) cfg.desde = sv.desde; if (sv && sv.riesgo) cfg.riesgo = sv.riesgo; } catch (e) { }
+  function guarda() { try { localStorage.setItem('umbral-robot-panel', JSON.stringify(cfg)); } catch (e) { } }
+  function desdeT(NOW) { return cfg.desde === '7d' ? NOW - 7 * 86400 : cfg.desde === '14d' ? NOW - 14 * 86400 : START; }
+
+  function dinero(n, signo) {
+    var s = Math.abs(n).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (n < -0.004 ? '−' : signo && n > 0.004 ? '+' : '') + s + ' $';
+  }
+  function pct(n) { var s = Math.abs(100 * n).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (n < -0.00004 ? '−' : n > 0.00004 ? '+' : '') + s + ' %'; }
+  function precioTxt(p) {
+    if (p == null || !isFinite(p)) return '—'; var a = Math.abs(p), d = a >= 1000 ? 1 : a >= 100 ? 2 : a >= 10 ? 3 : a >= 1 ? 4 : 5;
+    return p.toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+  function hora(t) { return new Date(t * 1000).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); }
+  function duracion(s) { var h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); if (h >= 48) return Math.round(h / 24) + ' días'; if (h >= 1) return h + ' h' + (m ? ' ' + m + ' min' : ''); return m + ' min'; }
+  function clase(n) { return n > 0.004 ? 'gana' : n < -0.004 ? 'pierde' : 'cero'; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function pinta() {
+    if (!ultimo) return;
+    var NOW = Math.floor(Date.now() / 1000), T0 = desdeT(ultimo.NOW);
+    var C = cuenta(ultimo.ops, T0, SALDO0, cfg.riesgo, ultimo.precio, ultimo.NOW);
+    var res = C.patrimonio - SALDO0;
+    $('saldo').textContent = dinero(C.saldo);
+    $('patrimonio').textContent = dinero(C.patrimonio);
+    $('abierto').textContent = dinero(C.abierto, true); $('abierto').className = 'v ' + clase(C.abierto);
+    $('resultado').textContent = dinero(res, true); $('resultado').className = 'v ' + clase(res);
+    $('resultadoPct').textContent = pct(res / SALDO0); $('resultadoPct').className = 'sub ' + clase(res);
+    var gan = C.cerradas.filter(function (o) { return o.pl > 0.004; }).length, per = C.cerradas.length - gan;
+    $('ncerradas').textContent = C.cerradas.length; $('nganan').textContent = gan; $('npierden').textContent = per; $('nabiertas').textContent = C.abiertas.length;
+    $('desdeTxt').textContent = cfg.desde === 'vivo' ? 'desde que se encendió, el 17 nov. a las 4:30 p. m.' : 'repaso de los últimos ' + (cfg.desde === '7d' ? '7' : '14') + ' días con las mismas reglas (desde ' + hora(T0) + ')';
+    $('riesgoTxt').textContent = dinero(SALDO0 * cfg.riesgo);
+    $('sinHueco').textContent = C.sinHueco ? C.sinHueco + (C.sinHueco === 1 ? ' señal no se tomó' : ' señales no se tomaron') + ' porque ya estaba el máximo de operaciones abiertas en su grupo (3 de cripto, 2 de metales, 2 de petróleo).' : '';
+    grafico(C, T0);
+    // abiertas
+    var ab = C.abiertas.slice().sort(function (a, b) { return b.te - a.te; });
+    $('tAbiertas').innerHTML = ab.length ? ab.map(function (o) {
+      return '<tr><td><b>' + esc(o.nombre) + '</b><span class="tf">' + TFN[o.tf] + '</span></td><td>' + (o.up ? '<span class="dir">▲ Compra</span>' : '<span class="dir">▼ Venta</span>') + '</td>' +
+        '<td>' + hora(o.te) + '</td><td class="n">' + precioTxt(o.E) + '</td><td class="n">' + precioTxt(o.px) + '</td><td class="n">' + precioTxt(o.stop) + '</td>' +
+        '<td class="n">' + dinero(o.usd) + (o.adds.length ? '<span class="amp">+' + o.adds.length + (o.adds.length === 1 ? ' ampliación' : ' ampliaciones') + '</span>' : '') + '</td>' +
+        '<td class="n ' + clase(o.pl) + '"><b>' + dinero(o.pl, true) + '</b></td></tr>';
+    }).join('') : '<tr><td colspan="8" class="vacio">Ninguna abierta ahora. El robot espera a que aparezca una flecha de tendencia en alguno de los 14 mercados.</td></tr>';
+    // cerradas
+    var ce = C.cerradas.slice().sort(function (a, b) { return b.tx - a.tx; });
+    $('tCerradas').innerHTML = ce.length ? ce.map(function (o) {
+      return '<tr><td><b>' + esc(o.nombre) + '</b><span class="tf">' + TFN[o.tf] + '</span></td><td>' + (o.up ? '<span class="dir">▲ Compra</span>' : '<span class="dir">▼ Venta</span>') + '</td>' +
+        '<td>' + hora(o.te) + '</td><td>' + hora(o.tx) + '</td><td class="n">' + duracion(o.tx - o.te) + '</td><td class="n">' + precioTxt(o.E) + ' → ' + precioTxt(o.ex) + '</td>' +
+        '<td class="n">' + dinero(o.usd) + (o.adds.length ? '<span class="amp">+' + o.adds.length + (o.adds.length === 1 ? ' ampliación' : ' ampliaciones') + '</span>' : '') + '</td>' +
+        '<td class="n ' + clase(o.pl) + '"><b>' + dinero(o.pl, true) + '</b></td></tr>';
+    }).join('') : '<tr><td colspan="8" class="vacio">' + (cfg.desde === 'vivo' ? 'Todavía no ha cerrado ninguna. Una operación de tendencia suele durar horas o días; mientras tanto puedes ver el repaso de los últimos 7 o 14 días.' : 'Ninguna cerrada en este periodo.') + '</td></tr>';
+    var av = avisosDatos.concat(ultimo.avisos.filter(function (a) { return !/pocas velas/.test(a); }));
+    $('avisos').textContent = av.length ? 'Avisos de datos: ' + av.slice(0, 4).join(' · ') + (av.length > 4 ? ' · …' : '') : '';
+    estado();
+  }
+
+  function grafico(C, T0) {
+    var el = $('grafico'), w = el.clientWidth || 800, h = 220, pl = 64, pr = 14, pt = 12, pb = 26;
+    var pts = C.curva.slice(); pts.push({ t: Math.max(C.NOW, pts[pts.length - 1].t), v: C.patrimonio, ahora: true });
+    var t0 = T0, t1 = Math.max(C.NOW, t0 + 3600), vs = pts.map(function (p) { return p.v; });
+    var lo = Math.min.apply(null, vs.concat([SALDO0])), hi = Math.max.apply(null, vs.concat([SALDO0])), pad = Math.max((hi - lo) * 0.15, SALDO0 * 0.002); lo -= pad; hi += pad;
+    var X = function (t) { return pl + (w - pl - pr) * (t - t0) / (t1 - t0); }, Y = function (v) { return pt + (h - pt - pb) * (1 - (v - lo) / (hi - lo)); };
+    var ticks = [], step = (hi - lo) / 4; for (var i = 0; i <= 4; i++) ticks.push(lo + step * i);
+    var d = 'M' + X(pts[0].t).toFixed(1) + ' ' + Y(pts[0].v).toFixed(1);
+    for (var j = 1; j < pts.length; j++) { d += ' H' + X(pts[j].t).toFixed(1) + ' V' + Y(pts[j].v).toFixed(1); }
+    var last = pts[pts.length - 1], col = last.v >= SALDO0 ? 'var(--gana)' : 'var(--pierde)';
+    var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Evolución del saldo">' +
+      ticks.map(function (v) { return '<line x1="' + pl + '" x2="' + (w - pr) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" class="rej"/><text x="' + (pl - 8) + '" y="' + (Y(v) + 4).toFixed(1) + '" class="eje" text-anchor="end">' + Math.round(v).toLocaleString('es-CO') + '</text>'; }).join('') +
+      '<line x1="' + pl + '" x2="' + (w - pr) + '" y1="' + Y(SALDO0).toFixed(1) + '" y2="' + Y(SALDO0).toFixed(1) + '" class="base"/>' +
+      '<text x="' + pl + '" y="' + (h - 6) + '" class="eje">' + hora(t0) + '</text><text x="' + (w - pr) + '" y="' + (h - 6) + '" class="eje" text-anchor="end">ahora</text>' +
+      '<path d="' + d + '" class="linea"/>' +
+      C.curva.slice(1).map(function (p) { return '<circle cx="' + X(p.t).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="3.5" class="pt ' + clase(p.o.pl) + '"/>'; }).join('') +
+      '<circle cx="' + X(last.t).toFixed(1) + '" cy="' + Y(last.v).toFixed(1) + '" r="5" fill="' + col + '" class="ahora"/>' +
+      '<line id="cruz" y1="' + pt + '" y2="' + (h - pb) + '" class="cruz" style="display:none"/></svg><div id="tip" class="tip" hidden></div>';
+    el.innerHTML = svg;
+    var s = el.querySelector('svg'), cruz = el.querySelector('#cruz'), tip = el.querySelector('#tip');
+    s.addEventListener('mousemove', function (ev) {
+      var r = s.getBoundingClientRect(), x = ev.clientX - r.left, best = null, bd = 1e9;
+      pts.forEach(function (p) { var dx = Math.abs(X(p.t) - x); if (dx < bd) { bd = dx; best = p; } });
+      if (!best) return; cruz.setAttribute('x1', X(best.t)); cruz.setAttribute('x2', X(best.t)); cruz.style.display = '';
+      tip.hidden = false;
+      tip.innerHTML = best.ahora ? '<b>Ahora</b><br>' + dinero(best.v) + '<br><span class="m">con las abiertas a precio de ahora</span>'
+        : best.o ? '<b>' + hora(best.t) + '</b><br>' + dinero(best.v) + '<br><span class="' + clase(best.o.pl) + '">' + esc(best.o.nombre) + ' ' + TFN[best.o.tf] + ': ' + dinero(best.o.pl, true) + '</span>'
+          : '<b>Inicio</b><br>' + dinero(best.v);
+      var tx = Math.min(Math.max(X(best.t) + 12, 0), w - 190); tip.style.left = tx + 'px'; tip.style.top = Math.max(Y(best.v) - 30, 0) + 'px';
+    });
+    s.addEventListener('mouseleave', function () { cruz.style.display = 'none'; tip.hidden = true; });
+  }
+
+  var proxima = 0;
+  function estado() {
+    var e = $('estado');
+    if (errorTotal) { e.className = 'estado mal'; e.textContent = 'Sin datos: ' + errorTotal + '. Reintento en ' + Math.max(0, Math.ceil((proxima - Date.now()) / 1000)) + ' s'; return; }
+    if (!ultimo) { e.className = 'estado'; e.textContent = 'Bajando velas de los 14 mercados…'; return; }
+    e.className = 'estado ok';
+    e.textContent = (cargando ? 'Actualizando… · ' : 'En directo · ') + 'precios de las ' + new Date(ultimo.NOW * 1000).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + (cargando ? '' : ' · siguiente en ' + Math.max(0, Math.ceil((proxima - Date.now()) / 1000)) + ' s');
+  }
+
+  function ciclo() {
+    if (cargando) return; cargando = true; estado();
+    cargar().then(function (av) {
+      avisosDatos = av;
+      var NOW = Math.floor(Date.now() / 1000), hay = MK.some(function (m) { return datos[m.code] && Object.keys(datos[m.code]).length; });
+      if (!hay) { errorTotal = av[0] || 'no responden Binance, Deriv ni Hyperliquid'; ultimo = null; }
+      else { errorTotal = null; var R = calcula(datos, NOW, NOW - 15 * 86400); ultimo = { ops: R.ops, avisos: R.avisos, precio: R.precio, NOW: NOW }; }
+    }).catch(function (e) { errorTotal = e && e.message || 'error'; }).then(function () {
+      cargando = false; proxima = Date.now() + 60000; pinta(); estado();
+    });
+  }
+
+  function botones() {
+    [].forEach.call(document.querySelectorAll('[data-desde]'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-desde') === cfg.desde); b.onclick = function () { cfg.desde = b.getAttribute('data-desde'); guarda(); botones(); pinta(); }; });
+    [].forEach.call(document.querySelectorAll('[data-riesgo]'), function (b) { b.setAttribute('aria-pressed', +b.getAttribute('data-riesgo') === cfg.riesgo); b.onclick = function () { cfg.riesgo = +b.getAttribute('data-riesgo'); guarda(); botones(); pinta(); }; });
+  }
+
+  function arranca() {
+    botones(); estado(); ciclo();
+    setInterval(function () { if (Date.now() >= proxima && !cargando) ciclo(); else estado(); }, 1000);
+    var rz; window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(pinta, 150); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arranca); else arranca();
+})();
+</script>
+</body>
+</html>
