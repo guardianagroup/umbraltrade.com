@@ -2,16 +2,16 @@
 /* Umbral · recolector de pagos de Deriv (prueba de una semana, del 16 al 23-11-2026, petición de Francisco).
    Pregunta: ¿se equivoca alguna vez el modelo de precios de Deriv? Deriv paga distinto por Sube y por Baja según cómo se ha movido el
    precio; lo que paga dice qué probabilidad le da a cada lado (1 / (1 + pago)). Para saber si hay momentos en que se equivoca, se guarda
-   cada 5 minutos lo que paga por los dos lados a 15 minutos y a 1 hora, y después se comprueba con los precios de Deriv qué pasó.
+   cada 5 minutos lo que paga por los dos lados a 15 minutos, 1 hora, 1 día y 1 semana, y después se comprueba con los precios de Deriv qué pasó.
    Solo lee la API pública (sin cuenta, sin operar). Una línea JSON por mercado y plazo:
-     { t: hora de la cotización (s), s: mercado, d: plazo (min), sube / baja: pago por euro (0,80 = paga 80 céntimos además del euro),
+     { t: hora de la cotización (s), s: mercado, d: plazo (15 y 60 = minutos; «1d» y «7d» = días), sube / baja: pago por euro (0,80 = paga 80 céntimos además del euro),
        spot / st: precio y hora de ese precio, e: código de error si Deriv no cotiza (mercado cerrado, plazo no disponible...) }
    Uso: node tools/pagos.js CARPETA FIN    (FIN = hora de parar, en segundos UNIX). Escribe CARPETA/AAAA-MM-DD.jsonl. */
 'use strict';
 const fs = require('fs'), path = require('path');
 const URL_DERIV = 'wss://api.derivws.com/trading/v1/options/ws/public';
-const SYMS = ['frxXAUUSD', 'frxEURUSD', 'frxGBPUSD', 'frxUSDJPY', 'frxAUDUSD', 'OTC_SPC', 'OTC_NDX', 'OTC_DJI', 'cryBTCUSD'];
-const DURS = [15, 60];
+const SYMS = ['frxXAUUSD', 'frxXAGUSD', 'frxEURUSD', 'frxGBPUSD', 'frxUSDJPY', 'frxAUDUSD', 'OTC_SPC', 'OTC_NDX', 'OTC_DJI'];   // Bitcoin fuera: Deriv no vende Sube/Baja en cripto; entra la plata
+const DURS = [[15, 'm'], [60, 'm'], [1, 'd'], [7, 'd']];   // 1 d y 7 d añadidos el 16-11 a las 22:30 (¿paga Deriv la subida de fondo de los índices?)
 const dir = process.argv[2], fin = +process.argv[3];
 if (!dir || !(fin > 0)) { console.error('uso: node pagos.js CARPETA FIN'); process.exit(2); }
 fs.mkdirSync(dir, { recursive: true });
@@ -41,8 +41,9 @@ async function muestra() {
   if (!ws || ws.readyState !== 1) { for (let i = 0; i < 3 && !(await conecta()); i++) await new Promise(r => setTimeout(r, 5000)); }
   const t = Math.floor(Date.now() / 1000), out = [];
   for (const s of SYMS) {
-    for (const d of DURS) {
-      const rs = await Promise.all(['CALL', 'PUT'].map(ct => pide({ proposal: 1, amount: 10, basis: 'stake', contract_type: ct, currency: 'USD', underlying_symbol: s, duration: d, duration_unit: 'm' })));
+    for (const [dv, du] of DURS) {
+      const d = du === 'm' ? dv : dv + du;
+      const rs = await Promise.all(['CALL', 'PUT'].map(ct => pide({ proposal: 1, amount: 10, basis: 'stake', contract_type: ct, currency: 'USD', underlying_symbol: s, duration: dv, duration_unit: du })));
       const q = rs.map(r => (r && r.proposal) || null), a = q[0] || q[1] || {}, err = rs.map(r => r && r.error && r.error.code).filter(Boolean)[0];
       const o = { t: t, s: s, d: d, sube: q[0] && q[0].payout ? r4(q[0].payout / 10 - 1) : null, baja: q[1] && q[1].payout ? r4(q[1].payout / 10 - 1) : null, spot: a.spot != null ? +a.spot : null, st: a.spot_time || null };
       if (err) o.e = err;
