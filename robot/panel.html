@@ -1880,7 +1880,7 @@
     var dias = '', d0 = new Date(t0 * 1000); d0.setHours(24, 0, 0, 0);   // una marca por día (a medianoche), sin amontonarlas
     var nd = Math.floor((t1 - d0.getTime() / 1000) / 86400) + 1, cada = Math.max(1, Math.ceil(nd * 70 / Math.max(1, w - pl - pr)));
     for (var k = 0, dt = new Date(d0); k < nd; k++, dt.setDate(dt.getDate() + 1)) {
-      var tt = dt.getTime() / 1000; if (k % cada || X(tt) < pl + 70 || X(tt) > w - pr - 50) continue;
+      var tt = dt.getTime() / 1000; if (k % cada || X(tt) < pl + 18 || X(tt) > w - pr - 60) continue;
       dias += '<line x1="' + X(tt).toFixed(1) + '" x2="' + X(tt).toFixed(1) + '" y1="' + (h - pb) + '" y2="' + (h - pb + 4) + '" class="rej"/><text x="' + X(tt).toFixed(1) + '" y="' + (h - 6) + '" class="eje" text-anchor="middle">' + dt.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) + '</text>';
     }
     var d = 'M' + X(pts[0].t).toFixed(1) + ' ' + Y(pts[0].v).toFixed(1);
@@ -1889,7 +1889,7 @@
     var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Evolución del saldo">' +
       ticks.map(function (v) { return '<line x1="' + pl + '" x2="' + (w - pr) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" class="rej"/><text x="' + (pl - 8) + '" y="' + (Y(v) + 4).toFixed(1) + '" class="eje" text-anchor="end">' + Math.round(v).toLocaleString('es-CO') + '</text>'; }).join('') +
       '<line x1="' + pl + '" x2="' + (w - pr) + '" y1="' + Y(SALDO0).toFixed(1) + '" y2="' + Y(SALDO0).toFixed(1) + '" class="base"/>' +
-      '<text x="' + pl + '" y="' + (h - 6) + '" class="eje">' + hora(t0) + '</text><text x="' + (w - pr) + '" y="' + (h - 6) + '" class="eje" text-anchor="end">ahora</text>' + dias +
+      (dias ? '' : '<text x="' + pl + '" y="' + (h - 6) + '" class="eje">' + hora(t0) + '</text>') + '<text x="' + (w - pr) + '" y="' + (h - 6) + '" class="eje" text-anchor="end">ahora</text>' + dias +
       '<path d="' + d + '" class="linea"/>' +
       C.curva.slice(1).map(function (p) { return '<circle cx="' + X(p.t).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="3.5" class="pt ' + clase(p.o.pl) + '"/>'; }).join('') +
       '<circle cx="' + X(last.t).toFixed(1) + '" cy="' + Y(last.v).toFixed(1) + '" r="5" fill="' + col + '" class="ahora"/>' +
