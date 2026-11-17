@@ -6,9 +6,10 @@ import numpy as np
 from comun import baja, guarda, cierra, log
 
 BASES = ['https://data-api.binance.vision', 'https://api.binance.com', 'https://api1.binance.com']
-H1 = 'BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT DOGEUSDT LTCUSDT LINKUSDT AVAXUSDT TRXUSDT DOTUSDT'.split()
-M5 = 'BTCUSDT ETHUSDT'.split()
-M1 = 'BTCUSDT ETHUSDT'.split()
+import os as _os
+H1 = (_os.environ.get('SIMBOLOS') or 'BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT DOGEUSDT LTCUSDT LINKUSDT AVAXUSDT TRXUSDT DOTUSDT').split()
+M5 = [] if _os.environ.get('SIMBOLOS') else 'BTCUSDT ETHUSDT'.split()
+M1 = [] if _os.environ.get('SIMBOLOS') else 'BTCUSDT ETHUSDT'.split()
 MS = {'1m': 60000, '5m': 300000, '1h': 3600000}
 BASE = [None]
 

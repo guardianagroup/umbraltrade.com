@@ -29,6 +29,7 @@ case "$PARTE" in
   zonas) SOLO_ZONAS=1 python3 deriv.py "$OUT" ;;
   sesgo-*) SOLO_SESGO="${PARTE#sesgo-}" python3 deriv.py "$OUT" ;;
   binance) HILOS=4 python3 binance.py "$OUT" ;;
+  binance2) SIMBOLOS='MATICUSDT POLUSDT UNIUSDT ATOMUSDT NEARUSDT APTUSDT ARBUSDT OPUSDT FILUSDT ICPUSDT HBARUSDT SUIUSDT TONUSDT SHIBUSDT PEPEUSDT XLMUSDT ETCUSDT BCHUSDT AAVEUSDT INJUSDT' HILOS=4 python3 binance.py "$OUT" ;;
   *) echo "parte desconocida: $PARTE"; exit 1 ;;
 esac
 ls -la "$OUT" | head -80
