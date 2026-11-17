@@ -13,7 +13,7 @@ trap relanza EXIT
 pasada() {
   git pull -q --rebase origin robot || true
   timeout 240 node robot/robot.js || echo "pasada: fallo"
-  git add robot/estado.json robot/eventos 2>/dev/null
+  git add -A robot/ 2>/dev/null   # estado.json y eventos/ (si existe): con una ruta que no existe, git add no añade nada
   if git diff --cached --quiet; then echo "pasada: sin cambios"; return; fi
   git commit -q -m "robot $(date -u +%Y-%m-%dT%H:%MZ)" || return
   for i in 1 2 3; do git pull -q --rebase origin robot && git push -q origin HEAD:robot && { echo "pasada: guardada"; return; }; sleep 5; done
