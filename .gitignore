@@ -2,3 +2,7 @@ robot/cbot/prueba/entrada.json
 robot/cbot/prueba/salida_*.json
 robot/cbot/*/bin/
 robot/cbot/*/obj/
+robot/cbot/*/MotorJs.cs
+robot/cbot/*/*/MotorJs.cs
+robot/cbot/*/*/bin/
+robot/cbot/*/*/obj/

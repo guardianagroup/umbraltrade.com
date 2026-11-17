@@ -12,5 +12,5 @@ namespace cAlgo.Robots
     }
 }
 `;
-for (const dir of ['UmbralRobot', 'prueba']) fs.writeFileSync(path.join(__dirname, dir, 'MotorJs.cs'), cs);
+for (const dir of ['UmbralRobot/UmbralRobot', 'prueba']) fs.writeFileSync(path.join(__dirname, dir, 'MotorJs.cs'), cs);
 console.log('MotorJs.cs', (cs.length / 1024).toFixed(0), 'KB');
