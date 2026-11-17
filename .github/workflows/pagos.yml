@@ -1,0 +1,32 @@
+# Recolector de pagos de Deriv (prueba de una semana, del 16 al 23-11-2026): guarda cada 5 minutos lo que paga Deriv por Sube y por Baja
+# a 15 minutos y a 1 hora en 9 mercados (rama «pagos»). Solo lee la API pública. Bucle de unas 5 h 40 min que al acabar lanza la tarea
+# siguiente; la programada es solo una red por si la cadena se corta. Al terminar la prueba se desactiva sola.
+name: Pagos
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */4 * * *'
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: pagos
+  cancel-in-progress: false
+jobs:
+  pagos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bucle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.name "umbral-pagos"
+          git config --global user.email "umbral-pagos@users.noreply.github.com"
+          bash tools/pagos.sh
