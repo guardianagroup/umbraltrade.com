@@ -190,7 +190,16 @@
     return p.toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
   }
   function hora(t) { return new Date(t * 1000).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); }
-  function duracion(s) { var h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); if (h >= 48) return Math.round(h / 24) + ' días'; if (h >= 1) return h + ' h' + (m ? ' ' + m + ' min' : ''); return m + ' min'; }
+  function duracion(s) {
+    var h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60), dd = Math.floor(h / 24);
+    if (dd >= 3) return dd + ' días'; if (dd >= 1) return dd + (dd === 1 ? ' día' : ' días') + (h % 24 ? ' ' + (h % 24) + ' h' : '');
+    if (h >= 1) return h + ' h' + (m ? ' ' + m + ' min' : ''); return m + ' min';
+  }
+  function marcas(lo, hi, n) {   // valores redondos para el eje
+    var raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), f = raw / mag, st = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+    var a = Math.floor(lo / st) * st, b = Math.ceil(hi / st) * st, out = []; for (var v = a; v <= b + st * 1e-6; v += st) out.push(v);
+    return { lo: a, hi: b, v: out };
+  }
   function clase(n) { return n > 0.004 ? 'gana' : n < -0.004 ? 'pierde' : 'cero'; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
@@ -207,7 +216,7 @@
     var gan = C.cerradas.filter(function (o) { return o.pl > 0.004; }).length, per = C.cerradas.length - gan;
     $('ncerradas').textContent = C.cerradas.length; $('nganan').textContent = gan; $('npierden').textContent = per; $('nabiertas').textContent = C.abiertas.length;
     $('desdeTxt').textContent = cfg.desde === 'vivo' ? 'desde que se encendió, el 17 nov. a las 4:30 p. m.' : 'repaso de los últimos ' + (cfg.desde === '7d' ? '7' : '14') + ' días con las mismas reglas (desde ' + hora(T0) + ')';
-    $('riesgoTxt').textContent = dinero(SALDO0 * cfg.riesgo);
+    $('riesgoTxt').textContent = (100 * cfg.riesgo).toLocaleString('es-CO') + ' % del saldo (unos ' + Math.round(C.saldo * cfg.riesgo).toLocaleString('es-CO') + ' $)';
     $('sinHueco').textContent = C.sinHueco ? C.sinHueco + (C.sinHueco === 1 ? ' señal no se tomó' : ' señales no se tomaron') + ' porque ya estaba el máximo de operaciones abiertas en su grupo (3 de cripto, 2 de metales, 2 de petróleo).' : '';
     grafico(C, T0);
     // abiertas
@@ -235,16 +244,23 @@
     var el = $('grafico'), w = el.clientWidth || 800, h = 220, pl = 64, pr = 14, pt = 12, pb = 26;
     var pts = C.curva.slice(); pts.push({ t: Math.max(C.NOW, pts[pts.length - 1].t), v: C.patrimonio, ahora: true });
     var t0 = T0, t1 = Math.max(C.NOW, t0 + 3600), vs = pts.map(function (p) { return p.v; });
-    var lo = Math.min.apply(null, vs.concat([SALDO0])), hi = Math.max.apply(null, vs.concat([SALDO0])), pad = Math.max((hi - lo) * 0.15, SALDO0 * 0.002); lo -= pad; hi += pad;
+    var lo = Math.min.apply(null, vs.concat([SALDO0])), hi = Math.max.apply(null, vs.concat([SALDO0])), pad = Math.max((hi - lo) * 0.08, SALDO0 * 0.002);
+    var mk = marcas(lo - pad, hi + pad, 4); lo = mk.lo; hi = mk.hi;
     var X = function (t) { return pl + (w - pl - pr) * (t - t0) / (t1 - t0); }, Y = function (v) { return pt + (h - pt - pb) * (1 - (v - lo) / (hi - lo)); };
-    var ticks = [], step = (hi - lo) / 4; for (var i = 0; i <= 4; i++) ticks.push(lo + step * i);
+    var ticks = mk.v;
+    var dias = '', d0 = new Date(t0 * 1000); d0.setHours(24, 0, 0, 0);   // una marca por día (a medianoche), sin amontonarlas
+    var nd = Math.floor((t1 - d0.getTime() / 1000) / 86400) + 1, cada = Math.max(1, Math.ceil(nd * 70 / Math.max(1, w - pl - pr)));
+    for (var k = 0, dt = new Date(d0); k < nd; k++, dt.setDate(dt.getDate() + 1)) {
+      var tt = dt.getTime() / 1000; if (k % cada || X(tt) < pl + 70 || X(tt) > w - pr - 50) continue;
+      dias += '<line x1="' + X(tt).toFixed(1) + '" x2="' + X(tt).toFixed(1) + '" y1="' + (h - pb) + '" y2="' + (h - pb + 4) + '" class="rej"/><text x="' + X(tt).toFixed(1) + '" y="' + (h - 6) + '" class="eje" text-anchor="middle">' + dt.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) + '</text>';
+    }
     var d = 'M' + X(pts[0].t).toFixed(1) + ' ' + Y(pts[0].v).toFixed(1);
     for (var j = 1; j < pts.length; j++) { d += ' H' + X(pts[j].t).toFixed(1) + ' V' + Y(pts[j].v).toFixed(1); }
     var last = pts[pts.length - 1], col = last.v >= SALDO0 ? 'var(--gana)' : 'var(--pierde)';
     var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Evolución del saldo">' +
       ticks.map(function (v) { return '<line x1="' + pl + '" x2="' + (w - pr) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" class="rej"/><text x="' + (pl - 8) + '" y="' + (Y(v) + 4).toFixed(1) + '" class="eje" text-anchor="end">' + Math.round(v).toLocaleString('es-CO') + '</text>'; }).join('') +
       '<line x1="' + pl + '" x2="' + (w - pr) + '" y1="' + Y(SALDO0).toFixed(1) + '" y2="' + Y(SALDO0).toFixed(1) + '" class="base"/>' +
-      '<text x="' + pl + '" y="' + (h - 6) + '" class="eje">' + hora(t0) + '</text><text x="' + (w - pr) + '" y="' + (h - 6) + '" class="eje" text-anchor="end">ahora</text>' +
+      '<text x="' + pl + '" y="' + (h - 6) + '" class="eje">' + hora(t0) + '</text><text x="' + (w - pr) + '" y="' + (h - 6) + '" class="eje" text-anchor="end">ahora</text>' + dias +
       '<path d="' + d + '" class="linea"/>' +
       C.curva.slice(1).map(function (p) { return '<circle cx="' + X(p.t).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="3.5" class="pt ' + clase(p.o.pl) + '"/>'; }).join('') +
       '<circle cx="' + X(last.t).toFixed(1) + '" cy="' + Y(last.v).toFixed(1) + '" r="5" fill="' + col + '" class="ahora"/>' +
