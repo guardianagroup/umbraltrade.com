@@ -20,6 +20,7 @@ case "$PARTE" in
   h1e) python3 duka.py h1 "$OUT" 2008 USATECHIDXUSD,USA500IDXUSD,USA30IDXUSD,DEUIDXEUR,GBRIDXGBP,FRAIDXEUR ;;
   h1m) python3 duka.py h1 "$OUT" 2003 XAUUSD,XAGUSD ;;
   h1f) python3 duka.py h1 "$OUT" 2008 EUSIDXEUR,NLDIDXEUR,CHEIDXCHF,JPNIDXJPY,HKGIDXHKD,AUSIDXAUD,XPTCMDUSD,XPDCMDUSD ;;
+  h1g) python3 duka.py h1 "$OUT" 2008 LIGHTCMDUSD,BRENTCMDUSD,GASCMDUSD ;;
   m1-*) python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 "${PARTE#m1-}" ;;
   ask-*) LADO=ASK python3 duka.py m1 "$OUT" 2018-01-01 2025-01-01 "${PARTE#ask-}" ;;
   deriv) COSTES=0 python3 deriv.py "$OUT" ;;
