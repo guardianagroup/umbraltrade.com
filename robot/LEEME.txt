@@ -1,0 +1,12 @@
+Robot de Umbral · paso 1: modo simulado (desde el 17-11-2026).
+
+Sin cuentas, sin claves y sin dinero. Cada 15 minutos lee velas públicas (Binance, Deriv y Hyperliquid), calcula las mismas
+entradas de tendencia que la web (umbraltrade.com) y anota lo que haría: cada entrada, cada ampliación y cada salida.
+No envía órdenes a ningún bróker.
+
+  robot.js     el cálculo (algo.js es el motor de la web, el mismo) y la lectura de precios
+  bucle.sh     una pasada cada 15 minutos durante unas 5 h 40 min; al acabar lanza la siguiente tarea
+  estado.json  qué entradas ya se anotaron (lo mismo que las flechas de la web)
+  eventos/     lo anotado, cifrado con la clave pública del proyecto (pub.pem); solo se lee fuera de GitHub
+
+La tarea de GitHub está en .github/workflows/robot.yml (rama main).
