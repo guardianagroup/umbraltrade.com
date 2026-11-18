@@ -1,0 +1,23 @@
+name: prueba-hft
+on:
+  push:
+    branches: [prueba-hft]
+    paths: ['hft/hft.js', '.github/workflows/hft.yml']
+permissions:
+  contents: write
+jobs:
+  hft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node hft/hft.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add hft/resultado.json
+          git commit -m "prueba hft $(date -u +%FT%TZ)"
+          git push
